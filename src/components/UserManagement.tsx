@@ -92,7 +92,7 @@ export const UserManagement: React.FC = () => {
     }
 
     try {
-      await saveUser({
+      const res = await saveUser({
         id: editingUser?.id,
         hrmCode: formData.hrmCode.trim(),
         fullName: formData.fullName.trim(),
@@ -104,11 +104,18 @@ export const UserManagement: React.FC = () => {
       });
 
       setIsModalOpen(false);
-      showNotification(
-        editingUser
-          ? `Đã cập nhật tài khoản "${formData.fullName}" trên CSDL D1!`
-          : `Đã khởi tạo tài khoản "${formData.fullName}" với mật khẩu mặc định "${DEFAULT_PASSWORD}" trên CSDL D1!`
-      );
+      if (res.syncedToD1) {
+        showNotification(
+          editingUser
+            ? `Đã cập nhật tài khoản "${formData.fullName}" và đồng bộ 100% lên Cloudflare D1!`
+            : `Đã tạo tài khoản "${formData.fullName}" (MK: ${DEFAULT_PASSWORD}) và đồng bộ 100% lên Cloudflare D1!`
+        );
+      } else {
+        showNotification(
+          `Đã lưu tài khoản "${formData.fullName}"! ${res.error ? 'Cảnh báo D1: ' + res.error : '(Chưa cấu hình URL Cloudflare D1)'}`,
+          res.error ? 'error' : 'success'
+        );
+      }
     } catch {
       showNotification('Lỗi khi lưu tài khoản vào CSDL D1', 'error');
     }

@@ -112,11 +112,13 @@ let inMemoryStore: FullSyncData = {
 
 export const d1Client = {
   getStoredWorkerUrl(): string {
-    return localStorage.getItem(D1_CONFIG_KEY) || '';
+    const envUrl = (import.meta.env?.VITE_D1_WORKER_URL as string) || '';
+    const stored = localStorage.getItem(D1_CONFIG_KEY);
+    return (stored || envUrl || '').trim().replace(/\/+$/, '');
   },
 
   setStoredWorkerUrl(url: string) {
-    localStorage.setItem(D1_CONFIG_KEY, url.trim());
+    localStorage.setItem(D1_CONFIG_KEY, url.trim().replace(/\/+$/, ''));
   },
 
   getStoredToken(): string {
@@ -277,27 +279,37 @@ export const d1Client = {
     return true;
   },
 
-  async saveUser(user: User, password?: string): Promise<boolean> {
+  async saveUser(user: User, password?: string): Promise<{ success: boolean; syncedToD1: boolean; error?: string }> {
+    const pwd = password || user.passwordHash || 'Vnpt@2026';
     const idx = inMemoryStore.users.findIndex((u) => u.id === user.id);
     if (idx >= 0) {
-      inMemoryStore.users[idx] = user;
+      inMemoryStore.users[idx] = { ...user, passwordHash: pwd };
     } else {
-      inMemoryStore.users.push(user);
+      inMemoryStore.users.push({ ...user, passwordHash: pwd });
     }
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
       try {
-        await fetch(`${workerUrl.replace(/\/+$/, '')}/api/users`, {
+        const res = await fetch(`${workerUrl}/api/users`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...user, password: password || 'Vnpt@2026' }),
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.getStoredToken() ? { Authorization: `Bearer ${this.getStoredToken()}` } : {}),
+          },
+          body: JSON.stringify({ ...user, password: pwd }),
         });
-      } catch (e) {
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return { success: true, syncedToD1: false, error: json.error || 'Worker trả về lỗi ' + res.status };
+        }
+        return { success: true, syncedToD1: true };
+      } catch (e: unknown) {
         console.error('Lỗi sync user lên D1:', e);
+        return { success: true, syncedToD1: false, error: (e as Error).message };
       }
     }
-    return true;
+    return { success: true, syncedToD1: false };
   },
 
   async deleteUser(userId: string): Promise<boolean> {

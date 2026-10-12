@@ -39,12 +39,12 @@ interface AppContextType {
   logout: () => void;
   changePassword: (oldPwd: string, newPwd: string) => Promise<{ success: boolean; message: string }>;
   updateAvatar: (avatarUrl: string) => Promise<boolean>;
-  refreshData: () => Promise<void>;
+  refreshData: () => Promise<FullSyncData>;
   // Unit operations
   saveUnit: (unit: Partial<Unit> & { code: string; name: string }) => Promise<boolean>;
   deleteUnit: (id: string) => Promise<boolean>;
   // User operations
-  saveUser: (user: Partial<User> & { hrmCode: string; fullName: string; unitId: string; username: string }, customPassword?: string) => Promise<boolean>;
+  saveUser: (user: Partial<User> & { hrmCode: string; fullName: string; unitId: string; username: string }, customPassword?: string) => Promise<{ success: boolean; syncedToD1: boolean; error?: string }>;
   deleteUser: (id: string) => Promise<boolean>;
   resetPassword: (userId: string) => Promise<boolean>;
   // Campaign operations
@@ -80,7 +80,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     lastSyncTime: new Date().toLocaleTimeString('vi-VN'),
   });
 
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (): Promise<FullSyncData> => {
     setIsLoading(true);
     try {
       const data: FullSyncData = await d1Client.syncAll();
@@ -103,8 +103,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setD1Status((prev) => ({
         ...prev,
+        isConnected: true,
         lastSyncTime: new Date().toLocaleTimeString('vi-VN'),
       }));
+      return data;
     } finally {
       setIsLoading(false);
     }
@@ -128,13 +130,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    // 1. ALWAYS pull fresh data from D1 before checking credentials
+    let latestUsers = users;
+    try {
+      const freshData = await refreshData();
+      latestUsers = freshData.users;
+    } catch (e) {
+      console.warn('Lỗi auto-sync trước khi login:', e);
+    }
+
     const workerUrl = d1Client.getStoredWorkerUrl();
     if (workerUrl) {
       try {
-        const res = await fetch(`${workerUrl.replace(/\/+$/, '')}/api/auth/login`, {
+        const res = await fetch(`${workerUrl}/api/auth/login`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          headers: {
+            'Content-Type': 'application/json',
+            ...(d1Client.getStoredToken() ? { Authorization: `Bearer ${d1Client.getStoredToken()}` } : {}),
+          },
+          body: JSON.stringify({ username: username.trim(), password }),
         });
         const data = await res.json();
         if (res.ok && data.success && data.user) {
@@ -143,24 +157,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await refreshData();
           return { success: true };
         }
-        return { success: false, error: data.error || 'Đăng nhập không thành công' };
+        if (data.error && data.error !== 'Tên đăng nhập không tồn tại!') {
+          return { success: false, error: data.error };
+        }
       } catch (err: unknown) {
         console.warn('Worker login failed, checking active online list', err);
       }
     }
 
-    // Direct check against synced users list
-    const found = users.find((u) => u.username.toLowerCase() === username.trim().toLowerCase());
+    // Direct check against freshly synced users list
+    const found = latestUsers.find((u) => u.username.toLowerCase() === username.trim().toLowerCase());
     if (!found) {
-      return { success: false, error: 'Tên đăng nhập không tồn tại trong hệ thống!' };
+      return {
+        success: false,
+        error: `Tên đăng nhập "${username}" không tồn tại trong hệ thống! Vui lòng bấm nút "Đồng bộ dữ liệu" bên dưới hoặc kiểm tra địa chỉ CSDL Cloudflare D1.`,
+      };
     }
     if (found.status === 'LOCKED') {
       return { success: false, error: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin!' };
     }
 
     // Default password check: if newly created or reset, pwd is DEFAULT_PASSWORD
-    // Or if changed, user has session pwd. For demonstration and instant testing,
-    // we accept DEFAULT_PASSWORD or any changed password if stored.
     const validPwd = password === DEFAULT_PASSWORD || password === (found.passwordHash || DEFAULT_PASSWORD);
     if (!validPwd) {
       return { success: false, error: 'Mật khẩu không chính xác! (Mật khẩu mặc định: ' + DEFAULT_PASSWORD + ')' };
@@ -226,7 +243,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveUser = async (
     userData: Partial<User> & { hrmCode: string; fullName: string; unitId: string; username: string },
     customPassword?: string
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; syncedToD1: boolean; error?: string }> => {
     const isNew = !userData.id;
     const newUser: User = {
       id: userData.id || `user-${Date.now()}`,
@@ -242,9 +259,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: userData.createdAt || new Date().toISOString(),
     };
 
-    await d1Client.saveUser(newUser, customPassword);
+    const res = await d1Client.saveUser(newUser, customPassword);
     await refreshData();
-    return true;
+    return res;
   };
 
   const deleteUser = async (id: string): Promise<boolean> => {
