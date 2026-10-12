@@ -17,5 +17,5 @@
  */
 export const D1_WORKER_URL = (
   (import.meta.env?.VITE_D1_WORKER_URL as string) ||
-  ''
+  'https://vnpt-eval-api.tuanha-qnh.workers.dev'
 ).trim();
