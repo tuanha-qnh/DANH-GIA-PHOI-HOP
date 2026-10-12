@@ -25,7 +25,7 @@
 // 1. Địa chỉ URL Cloudflare Worker API
 export const D1_WORKER_URL = (
   (import.meta.env?.VITE_D1_WORKER_URL as string) ||
-  'https://danh-gia-phoi-hop.tuanha-qnh.workers.dev'
+  'https://vnpt-eval-api.tuanha-qnh.workers.dev'
 ).trim();
 
 // 2. Mật khẩu / Secret bảo mật Worker
@@ -33,5 +33,5 @@ export const D1_WORKER_PASSWORD = (
   (import.meta.env?.VITE_D1_WORKER_PASSWORD as string) ||
   (import.meta.env?.VITE_D1_API_TOKEN as string) ||
   (import.meta.env?.VITE_D1_WORKER_SECRET as string) ||
-  'Vnpt@2026'
+  'Vnpt@2026@DHKD'
 ).trim();
