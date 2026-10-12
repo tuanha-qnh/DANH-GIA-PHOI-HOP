@@ -4,18 +4,34 @@
  */
 
 /**
- * CẤU HÌNH KẾT NỐI CƠ SỞ DỮ LIỆU CLOUDFLARE D1
+ * ============================================================================
+ * CẤU HÌNH KẾT NỐI CƠ SỞ DỮ LIỆU CLOUDFLARE D1 & WORKER API
+ * ============================================================================
  *
- * Đồng chí dán địa chỉ Cloudflare Worker API thực tế mà Cloudflare cấp cho đồng chí vào đây.
- * Địa chỉ Cloudflare Worker luôn có dạng:
- * https://<tên-worker>.<tên-subdomain-cloudflare-của-bạn>.workers.dev
+ * 1. D1_WORKER_URL:
+ *    Địa chỉ URL Cloudflare Worker thực tế của bạn được cấp khi Deploy Worker.
+ *    Định dạng chuẩn của Cloudflare Worker luôn là:
+ *    https://<tên-worker>.<subdomain-cloudflare-của-bạn>.workers.dev
  *
- * Ví dụ: 'https://vnpt-eval-api.tuanha-qnh.workers.dev'
+ *    Ví dụ: 'https://danh-gia-phoi-hop.tuanha-qnh.workers.dev'
+ *           hoặc 'https://vnpt-eval-api.tuanha-qnh.workers.dev'
  *
- * (LƯU Ý: Không để URL mẫu không tồn tại như 'https://vnpt-eval-api.workers.dev'
- * vì sẽ gây lỗi DNS net::ERR_NAME_NOT_RESOLVED).
+ * 2. D1_WORKER_PASSWORD:
+ *    Mật khẩu / Secret bạn đã đặt trong phần Settings của Worker:
+ *    (Cloudflare Dashboard -> Workers & Pages -> Worker của bạn -> Settings -> Variables and Secrets)
+ *    Mặc định: 'Vnpt@2026' (hoặc mật khẩu bất kỳ bạn đã đặt trong biến môi trường của Worker).
  */
+
+// 1. Địa chỉ URL Cloudflare Worker API
 export const D1_WORKER_URL = (
   (import.meta.env?.VITE_D1_WORKER_URL as string) ||
-  'https://vnpt-eval-api.tuanha-qnh.workers.dev'
+  'https://danh-gia-phoi-hop.tuanha-qnh.workers.dev'
+).trim();
+
+// 2. Mật khẩu / Secret bảo mật Worker
+export const D1_WORKER_PASSWORD = (
+  (import.meta.env?.VITE_D1_WORKER_PASSWORD as string) ||
+  (import.meta.env?.VITE_D1_API_TOKEN as string) ||
+  (import.meta.env?.VITE_D1_WORKER_SECRET as string) ||
+  'Vnpt@2026'
 ).trim();

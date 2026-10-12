@@ -147,11 +147,14 @@ INSERT OR IGNORE INTO criteria (id, code, name, description, weight, min_score, 
 `;
 
 export const CLOUDFLARE_WORKER_CODE = `/**
- * =========================================================================
+  * =========================================================================
  * VNPT COORDINATION EVALUATION SYSTEM - CLOUDFLARE WORKER D1 API
  * Dán toàn bộ mã này vào Cloudflare Worker Web Editor (dash.cloudflare.com)
  * =========================================================================
- * Yêu cầu: Binding D1 Database tên là 'DB' trong Settings -> Variables -> D1 Bindings
+ * Yêu cầu:
+ * 1. Binding D1 Database tên là 'DB' trong Settings -> Variables -> D1 Bindings
+ * 2. (Tùy chọn) Đặt mật khẩu / Secret trong Settings -> Variables and Secrets:
+ *    Biến có thể đặt tên là PASSWORD, API_TOKEN, API_KEY, SECRET, AUTH_TOKEN, v.v.
  */
 
 export default {
@@ -160,7 +163,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-token',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-token, x-api-key, x-worker-password',
       'Access-Control-Max-Age': '86400',
     };
 
@@ -182,6 +185,46 @@ export default {
       });
     }
 
+    // Kiểm tra Mật khẩu / Secret bảo mật Worker (nếu người dùng có cấu hình trong Settings -> Variables)
+    const configuredSecret = 
+      env.PASSWORD ||
+      env.API_TOKEN ||
+      env.API_KEY ||
+      env.API_SECRET ||
+      env.SECRET ||
+      env.AUTH_TOKEN ||
+      env.TOKEN ||
+      env.WORKER_PASSWORD ||
+      env.ADMIN_PASSWORD ||
+      env.SECRET_KEY ||
+      env.MAT_KHAU;
+
+    // Lấy token / mật khẩu do client gửi lên
+    const authHeader = request.headers.get('Authorization') || '';
+    const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
+    const headerToken = request.headers.get('x-api-token') || 
+                        request.headers.get('x-api-key') || 
+                        request.headers.get('x-worker-password') || '';
+    const queryToken = url.searchParams.get('token') || 
+                       url.searchParams.get('key') || 
+                       url.searchParams.get('secret') || 
+                       url.searchParams.get('password') || '';
+
+    const clientToken = (bearerToken || headerToken || queryToken).trim();
+
+    // Nếu Worker có đặt mật khẩu bảo vệ, kiểm tra xác thực (trừ OPTIONS & /api/health)
+    if (configuredSecret && pathname !== '/api/health' && pathname !== '/') {
+      if (clientToken !== configuredSecret) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Mật khẩu bảo mật Worker không chính xác (401 Unauthorized). Vui lòng cấu hình đúng Mật khẩu/Secret trong hệ thống!'
+        }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     try {
       // -------------------------------------------------------------
       // 1. Health Check & Test Kết Nối
@@ -193,12 +236,28 @@ export default {
           tablesCount = res ? res.count : 0;
         } catch (e) {}
 
+        const hasSecret = !!configuredSecret;
+        const isSecretValid = !configuredSecret || (clientToken === configuredSecret);
+
+        if (hasSecret && !isSecretValid) {
+          return new Response(JSON.stringify({
+            success: false,
+            status: 'AUTH_FAILED',
+            error: 'Mật khẩu truy cập Worker không khớp với mật khẩu đặt trên Cloudflare Worker (401 Unauthorized)',
+            hasSecretProtection: true,
+          }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
         return new Response(JSON.stringify({
           success: true,
           status: 'ONLINE',
           message: 'Kết nối Cloudflare D1 thành công!',
           timestamp: new Date().toISOString(),
-          tablesCount: tablesCount
+          tablesCount: tablesCount,
+          hasSecretProtection: hasSecret
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });

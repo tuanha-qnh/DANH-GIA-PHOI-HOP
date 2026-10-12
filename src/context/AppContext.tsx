@@ -104,9 +104,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setD1Status((prev) => ({
         ...prev,
         isConnected: true,
+        workerUrl: d1Client.getStoredWorkerUrl(),
         lastSyncTime: new Date().toLocaleTimeString('vi-VN'),
       }));
       return data;
+    } catch (err) {
+      setD1Status((prev) => ({
+        ...prev,
+        isConnected: false,
+        workerUrl: d1Client.getStoredWorkerUrl(),
+        lastSyncTime: new Date().toLocaleTimeString('vi-VN'),
+      }));
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -114,19 +123,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initial load
   useEffect(() => {
-    refreshData().then(() => {
-      // Check stored session or default admin for demo friendliness if desired,
-      // but remember compulsory login rule: prompt login screen if not logged in.
-      const savedUserJson = sessionStorage.getItem('vnpt_auth_user');
-      if (savedUserJson) {
-        try {
-          const user = JSON.parse(savedUserJson);
-          setCurrentUser(user);
-        } catch {
-          // ignore
+    refreshData()
+      .catch((err) => {
+        console.warn('Khởi tạo ban đầu với dữ liệu hiện tại (Worker chưa phản hồi):', err.message);
+      })
+      .finally(() => {
+        const savedUserJson = sessionStorage.getItem('vnpt_auth_user');
+        if (savedUserJson) {
+          try {
+            const user = JSON.parse(savedUserJson);
+            setCurrentUser(user);
+          } catch {
+            // ignore
+          }
         }
-      }
-    });
+      });
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -142,22 +153,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const workerUrl = d1Client.getStoredWorkerUrl();
     if (workerUrl) {
       try {
-        const res = await fetch(`${workerUrl}/api/auth/login`, {
+        const res = await fetch(d1Client.buildUrl('/api/auth/login'), {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(d1Client.getStoredToken() ? { Authorization: `Bearer ${d1Client.getStoredToken()}` } : {}),
-          },
+          headers: d1Client.getAuthHeaders(),
           body: JSON.stringify({ username: username.trim(), password }),
         });
-        const data = await res.json();
-        if (res.ok && data.success && data.user) {
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data?.user) {
           setCurrentUser(data.user);
           sessionStorage.setItem('vnpt_auth_user', JSON.stringify(data.user));
-          await refreshData();
+          await refreshData().catch(() => {});
           return { success: true };
         }
-        if (data.error && data.error !== 'Tên đăng nhập không tồn tại!') {
+        if (data?.error && data.error !== 'Tên đăng nhập không tồn tại!') {
           return { success: false, error: data.error };
         }
       } catch (err: unknown) {

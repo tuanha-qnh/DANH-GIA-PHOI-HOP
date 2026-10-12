@@ -215,26 +215,29 @@ export const D1ConfigModule: React.FC = () => {
                     type="url"
                     value={workerUrl}
                     onChange={(e) => setWorkerUrlInput(e.target.value)}
-                    placeholder="https://vnpt-eval-api.<tên-subdomain>.workers.dev"
+                    placeholder="https://<tên-worker>.<tên-subdomain>.workers.dev"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005baa] font-mono text-xs"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Ví dụ: <code className="text-[#005baa]">https://vnpt-eval-api.myuser.workers.dev</code> (Nếu để trống, hệ thống tự động sử dụng máy chủ Online D1 giả lập thời gian thực).
+                  Định dạng chuẩn: <code className="text-[#005baa]">https://danh-gia-phoi-hop.tuanha-qnh.workers.dev</code> (Lưu ý: Không dùng URL mẫu không tồn tại).
                 </p>
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  API Token / Secret Key (Tùy chọn)
+                  Mật khẩu bảo mật Worker / Secret Key (Nêu đồng chí có đặt mật khẩu trên Worker)
                 </label>
                 <input
-                  type="password"
+                  type="text"
                   value={apiToken}
                   onChange={(e) => setApiTokenInput(e.target.value)}
-                  placeholder="Bearer Token hoặc Secret nếu đồng chí cấu hình bảo vệ Worker"
+                  placeholder="Nhập mật khẩu/secret đã đặt trong Worker Settings -> Variables (VD: Vnpt@2026)"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005baa] font-mono text-xs"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Khớp với biến <code className="text-amber-700 font-mono">PASSWORD</code> hoặc <code className="text-amber-700 font-mono">API_TOKEN</code> / <code className="text-amber-700 font-mono">SECRET</code> đã cấu hình trên Cloudflare Worker.
+                </p>
               </div>
 
               {/* Action buttons */}
