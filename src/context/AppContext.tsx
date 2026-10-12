@@ -170,7 +170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!found) {
       return {
         success: false,
-        error: `Tên đăng nhập "${username}" không tồn tại trong hệ thống! Vui lòng bấm nút "Đồng bộ dữ liệu" bên dưới hoặc kiểm tra địa chỉ CSDL Cloudflare D1.`,
+        error: `Tên đăng nhập "${username}" không tồn tại trong hệ thống! Vui lòng bấm nút "Đồng bộ CSDL D1" bên dưới để cập nhật lại dữ liệu từ hệ thống.`,
       };
     }
     if (found.status === 'LOCKED') {

@@ -115,7 +115,17 @@ export const d1Client = {
   getStoredWorkerUrl(): string {
     const stored = localStorage.getItem(D1_CONFIG_KEY);
     const envUrl = (import.meta.env?.VITE_D1_WORKER_URL as string) || '';
-    return (stored || envUrl || D1_WORKER_URL || '').trim().replace(/\/+$/, '');
+    const raw = (stored || envUrl || D1_WORKER_URL || '').trim().replace(/\/+$/, '');
+    if (
+      !raw ||
+      raw === 'https://vnpt-eval-api.workers.dev' ||
+      raw === 'http://vnpt-eval-api.workers.dev' ||
+      raw.includes('<') ||
+      raw.includes('your-subdomain')
+    ) {
+      return '';
+    }
+    return raw;
   },
 
   setStoredWorkerUrl(url: string) {
