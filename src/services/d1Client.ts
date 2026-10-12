@@ -22,6 +22,7 @@ import {
   INITIAL_UNITS,
   INITIAL_USERS,
 } from '../constants/initialData';
+import { D1_WORKER_URL } from '../config/d1Config';
 
 export interface FullSyncData {
   units: Unit[];
@@ -112,9 +113,9 @@ let inMemoryStore: FullSyncData = {
 
 export const d1Client = {
   getStoredWorkerUrl(): string {
-    const envUrl = (import.meta.env?.VITE_D1_WORKER_URL as string) || '';
     const stored = localStorage.getItem(D1_CONFIG_KEY);
-    return (stored || envUrl || '').trim().replace(/\/+$/, '');
+    const envUrl = (import.meta.env?.VITE_D1_WORKER_URL as string) || '';
+    return (stored || envUrl || D1_WORKER_URL || '').trim().replace(/\/+$/, '');
   },
 
   setStoredWorkerUrl(url: string) {

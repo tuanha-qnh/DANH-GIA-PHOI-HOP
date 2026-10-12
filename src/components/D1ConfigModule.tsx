@@ -305,15 +305,18 @@ export const D1ConfigModule: React.FC = () => {
             <div className="bg-blue-50/80 p-5 rounded-xl border border-blue-200 text-xs text-blue-900 space-y-3">
               <h4 className="font-bold text-sm text-[#005baa] flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4" />
-                Nguyên Lý Đồng Bộ Online 100%
+                Cấu Hình CSDL D1 Trong Mã Nguồn
               </h4>
               <p className="leading-relaxed">
-                Toàn bộ dữ liệu (Đơn vị, Người dùng, Mật khẩu, Phân quyền đánh giá, Điểm số) được lưu trữ trên CSDL Cloudflare D1. Khi người dùng truy cập từ bất kỳ máy tính hay điện thoại nào, hệ thống đều tải trực tiếp từ máy chủ D1, không phụ thuộc vào bộ nhớ cục bộ (localStorage).
+                URL Cloudflare D1 được cấu hình trực tiếp tại file: <code className="bg-white px-1.5 py-0.5 rounded border border-blue-200 font-bold text-[#005baa]">src/config/d1Config.ts</code>.
+              </p>
+              <p className="leading-relaxed">
+                Khi đồng chí đưa lên GitHub và Vercel, <strong>100% người dùng trên mọi máy tính, điện thoại, trình duyệt</strong> khi truy cập website đều tự động kết nối trực tiếp vào CSDL Cloudflare D1 mà không cần phải thực hiện bất kỳ thao tác cấu hình nào.
               </p>
               <div className="p-3 bg-white rounded-lg border border-blue-200 space-y-1.5 font-mono text-[11px] text-slate-700">
-                <p>✓ CSDL: SQLite Serverless D1</p>
-                <p>✓ Băng thông: Cloudflare Global Edge</p>
-                <p>✓ Cơ chế bảo mật: CORS Restricted & Bcrypt Hash</p>
+                <p>✓ Cấu hình mã nguồn: src/config/d1Config.ts</p>
+                <p>✓ CSDL: Cloudflare D1 (SQLite Edge)</p>
+                <p>✓ Đồng bộ: Tự động 100% trên mọi thiết bị</p>
               </div>
             </div>
           </div>
