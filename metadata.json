@@ -1,0 +1,8 @@
+{
+  "name": "Hệ thống Đánh giá Công tác Phối hợp Đơn vị - VNPT",
+  "description": "Hệ thống đánh giá công tác phối hợp giữa các đơn vị VNPT, phân quyền đánh giá, tích hợp Cloudflare D1 và báo cáo thống kê trực quan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,267 @@
+/**
+ * =========================================================================
+ * VNPT COORDINATION EVALUATION SYSTEM - CLOUDFLARE WORKER D1 API
+ * Dán toàn bộ mã này vào Cloudflare Worker Web Editor (dash.cloudflare.com)
+ * =========================================================================
+ * Yêu cầu: Binding D1 Database tên là 'DB' trong Settings -> Variables -> D1 Bindings
+ */
+
+export default {
+  async fetch(request, env, ctx) {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-token',
+      'Access-Control-Max-Age': '86400',
+    };
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    const db = env.DB;
+
+    if (!db) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Chưa cấu hình D1 Database Binding với biến tên 'DB' trong Settings Worker!"
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    try {
+      if (pathname === '/api/health' || pathname === '/') {
+        let tablesCount = 0;
+        try {
+          const res = await db.prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table'").first();
+          tablesCount = res ? res.count : 0;
+        } catch (e) {}
+
+        return new Response(JSON.stringify({
+          success: true,
+          status: 'ONLINE',
+          message: 'Kết nối Cloudflare D1 thành công!',
+          timestamp: new Date().toISOString(),
+          tablesCount
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname === '/api/init-schema' && request.method === 'POST') {
+        const statements = [
+          `CREATE TABLE IF NOT EXISTS units (id TEXT PRIMARY KEY, code TEXT UNIQUE, name TEXT, parent_id TEXT, level INTEGER, status TEXT, created_at TEXT)`,
+          `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, hrm_code TEXT, full_name TEXT, unit_id TEXT, username TEXT UNIQUE, password_hash TEXT, role TEXT, must_change_password INTEGER, can_view_reports INTEGER, avatar_url TEXT, status TEXT, created_at TEXT, last_login_at TEXT)`,
+          `CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, code TEXT UNIQUE, name TEXT, period_type TEXT, period_value TEXT, start_date TEXT, end_date TEXT, is_locked INTEGER, description TEXT, created_at TEXT)`,
+          `CREATE TABLE IF NOT EXISTS criteria (id TEXT PRIMARY KEY, code TEXT UNIQUE, name TEXT, description TEXT, weight REAL, min_score INTEGER, max_score INTEGER, order_index INTEGER)`,
+          `CREATE TABLE IF NOT EXISTS campaign_target_units (campaign_id TEXT, unit_id TEXT, PRIMARY KEY (campaign_id, unit_id))`,
+          `CREATE TABLE IF NOT EXISTS campaign_evaluating_units (campaign_id TEXT, unit_id TEXT, PRIMARY KEY (campaign_id, unit_id))`,
+          `CREATE TABLE IF NOT EXISTS campaign_evaluators (campaign_id TEXT, user_id TEXT, unit_id TEXT, assigned_at TEXT, PRIMARY KEY (campaign_id, user_id))`,
+          `CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, campaign_id TEXT, evaluator_id TEXT, evaluator_unit_id TEXT, target_unit_id TEXT, scores_json TEXT, average_score REAL, status TEXT, submitted_at TEXT, updated_at TEXT)`,
+          `CREATE TABLE IF NOT EXISTS app_config (config_key TEXT PRIMARY KEY, config_value TEXT, updated_at TEXT)`
+        ];
+
+        for (const sql of statements) {
+          await db.prepare(sql).run();
+        }
+
+        await db.prepare(`
+          INSERT OR IGNORE INTO users (id, hrm_code, full_name, unit_id, username, password_hash, role, must_change_password, can_view_reports, status, created_at)
+          VALUES ('user-admin', 'HRM-0001', 'Quản trị viên Hệ thống VNPT', 'u-root', 'admin', 'Vnpt@2026', 'ADMIN', 0, 1, 'ACTIVE', datetime('now'))
+        `).run();
+
+        return new Response(JSON.stringify({ success: true, message: 'Khởi tạo D1 Schema thành công!' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname === '/api/sync/all' && request.method === 'GET') {
+        const units = (await db.prepare("SELECT * FROM units ORDER BY level ASC, code ASC").all()).results || [];
+        const users = (await db.prepare("SELECT id, hrm_code as hrmCode, full_name as fullName, unit_id as unitId, username, role, must_change_password as mustChangePassword, can_view_reports as canViewReports, avatar_url as avatarUrl, status, created_at as createdAt, last_login_at as lastLoginAt FROM users").all()).results || [];
+        const campaigns = (await db.prepare("SELECT id, code, name, period_type as periodType, period_value as periodValue, start_date as startDate, end_date as endDate, is_locked as isLocked, description, created_at as createdAt FROM campaigns ORDER BY created_at DESC").all()).results || [];
+        const criteria = (await db.prepare("SELECT id, code, name, description, weight, min_score as minScore, max_score as maxScore, order_index as orderIndex FROM criteria ORDER BY order_index ASC").all()).results || [];
+        const targetUnits = (await db.prepare("SELECT campaign_id as campaignId, unit_id as unitId FROM campaign_target_units").all()).results || [];
+        const evaluatingUnits = (await db.prepare("SELECT campaign_id as campaignId, unit_id as unitId FROM campaign_evaluating_units").all()).results || [];
+        const evaluators = (await db.prepare("SELECT campaign_id as campaignId, user_id as userId, unit_id as unitId, assigned_at as assignedAt FROM campaign_evaluators").all()).results || [];
+        const rawEvals = (await db.prepare("SELECT * FROM evaluations").all()).results || [];
+
+        const evaluations = rawEvals.map(e => ({
+          id: e.id,
+          campaignId: e.campaign_id,
+          evaluatorId: e.evaluator_id,
+          evaluatorUnitId: e.evaluator_unit_id,
+          targetUnitId: e.target_unit_id,
+          scores: JSON.parse(e.scores_json || '{}'),
+          averageScore: e.average_score,
+          status: e.status,
+          submittedAt: e.submitted_at,
+          updatedAt: e.updated_at
+        }));
+
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            units,
+            users: users.map(u => ({ ...u, mustChangePassword: !!u.mustChangePassword, canViewReports: !!u.canViewReports })),
+            campaigns: campaigns.map(c => ({ ...c, isLocked: !!c.isLocked })),
+            criteria,
+            targetUnits,
+            evaluatingUnits,
+            evaluators,
+            evaluations
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname === '/api/auth/login' && request.method === 'POST') {
+        const body = await request.json();
+        const { username, password } = body;
+
+        const user = await db.prepare("SELECT * FROM users WHERE username = ?").bind(username).first();
+        if (!user) {
+          return new Response(JSON.stringify({ success: false, error: 'Tên đăng nhập không tồn tại!' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        if (user.status === 'LOCKED') {
+          return new Response(JSON.stringify({ success: false, error: 'Tài khoản này hiện đang bị khóa!' }), {
+            status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        if (user.password_hash !== password) {
+          return new Response(JSON.stringify({ success: false, error: 'Mật khẩu không chính xác!' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        await db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(new Date().toISOString(), user.id).run();
+
+        const safeUser = {
+          id: user.id,
+          hrmCode: user.hrm_code,
+          fullName: user.full_name,
+          unitId: user.unit_id,
+          username: user.username,
+          role: user.role,
+          mustChangePassword: !!user.must_change_password,
+          canViewReports: !!user.can_view_reports,
+          avatarUrl: user.avatar_url,
+          status: user.status
+        };
+
+        return new Response(JSON.stringify({ success: true, user: safeUser }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname === '/api/auth/change-password' && request.method === 'POST') {
+        const body = await request.json();
+        const { userId, oldPassword, newPassword } = body;
+
+        const user = await db.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
+        if (!user) {
+          return new Response(JSON.stringify({ success: false, error: 'Không tìm thấy người dùng!' }), {
+            status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        if (oldPassword && user.password_hash !== oldPassword) {
+          return new Response(JSON.stringify({ success: false, error: 'Mật khẩu cũ không chính xác!' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        await db.prepare("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?").bind(newPassword, userId).run();
+
+        return new Response(JSON.stringify({ success: true, message: 'Đổi mật khẩu thành công!' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname === '/api/units' && request.method === 'POST') {
+        const u = await request.json();
+        await db.prepare(`
+          INSERT INTO units (id, code, name, parent_id, level, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name, parent_id=excluded.parent_id, level=excluded.level, status=excluded.status
+        `).bind(u.id, u.code, u.name, u.parentId || null, u.level || 1, u.status || 'ACTIVE', u.createdAt || new Date().toISOString()).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname.startsWith('/api/units/') && request.method === 'DELETE') {
+        const id = pathname.split('/').pop();
+        await db.prepare("DELETE FROM units WHERE id = ?").bind(id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname === '/api/users' && request.method === 'POST') {
+        const u = await request.json();
+        const pwd = u.password || 'Vnpt@2026';
+        await db.prepare(`
+          INSERT INTO users (id, hrm_code, full_name, unit_id, username, password_hash, role, must_change_password, can_view_reports, avatar_url, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET hrm_code=excluded.hrm_code, full_name=excluded.full_name, unit_id=excluded.unit_id, username=excluded.username, role=excluded.role, must_change_password=excluded.must_change_password, can_view_reports=excluded.can_view_reports, avatar_url=excluded.avatar_url, status=excluded.status
+        `).bind(u.id, u.hrmCode, u.fullName, u.unitId, u.username, pwd, u.role || 'USER', u.mustChangePassword ? 1 : 0, u.canViewReports ? 1 : 0, u.avatarUrl || null, u.status || 'ACTIVE', u.createdAt || new Date().toISOString()).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname.startsWith('/api/users/reset-password') && request.method === 'POST') {
+        const { userId } = await request.json();
+        await db.prepare("UPDATE users SET password_hash = 'Vnpt@2026', must_change_password = 1 WHERE id = ?").bind(userId).run();
+        return new Response(JSON.stringify({ success: true, message: 'Đã reset mật khẩu về Vnpt@2026!' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname.startsWith('/api/users/') && request.method === 'DELETE') {
+        const id = pathname.split('/').pop();
+        await db.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname === '/api/campaigns' && request.method === 'POST') {
+        const c = await request.json();
+        await db.prepare(`
+          INSERT INTO campaigns (id, code, name, period_type, period_value, start_date, end_date, is_locked, description, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name, period_type=excluded.period_type, period_value=excluded.period_value, start_date=excluded.start_date, end_date=excluded.end_date, is_locked=excluded.is_locked, description=excluded.description
+        `).bind(c.id, c.code, c.name, c.periodType, c.periodValue, c.startDate, c.endDate, c.isLocked ? 1 : 0, c.description || '', c.createdAt || new Date().toISOString()).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname === '/api/evaluations' && request.method === 'POST') {
+        const ev = await request.json();
+        await db.prepare(`
+          INSERT INTO evaluations (id, campaign_id, evaluator_id, evaluator_unit_id, target_unit_id, scores_json, average_score, status, submitted_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET scores_json=excluded.scores_json, average_score=excluded.average_score, status=excluded.status, submitted_at=excluded.submitted_at, updated_at=excluded.updated_at
+        `).bind(ev.id, ev.campaignId, ev.evaluatorId, ev.evaluatorUnitId, ev.targetUnitId, JSON.stringify(ev.scores), ev.averageScore, ev.status || 'SUBMITTED', ev.submittedAt || new Date().toISOString(), new Date().toISOString()).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname === '/api/evaluators/save-batch' && request.method === 'POST') {
+        const { campaignId, evaluators } = await request.json();
+        await db.prepare("DELETE FROM campaign_evaluators WHERE campaign_id = ?").bind(campaignId).run();
+        for (const ev of evaluators) {
+          await db.prepare(`INSERT INTO campaign_evaluators (campaign_id, user_id, unit_id, assigned_at) VALUES (?, ?, ?, ?)`)
+            .bind(campaignId, ev.userId, ev.unitId, ev.assignedAt || new Date().toISOString()).run();
+        }
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      return new Response(JSON.stringify({ error: 'Endpoint không tồn tại' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ success: false, error: err.message || 'Lỗi xử lý Cloudflare D1' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+};
