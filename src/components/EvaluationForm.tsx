@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { EvaluationRecord, CriterionScore } from '../types';
+import { getCampaignEvaluationState } from '../utils/campaignSchedule';
 import {
   CheckSquare,
   Lock,
@@ -41,6 +42,10 @@ export const EvaluationForm: React.FC = () => {
   );
 
   const currentCampaign = campaigns.find((c) => c.id === selectedCampaignId) || campaigns[0];
+  const evalState = useMemo(
+    () => getCampaignEvaluationState(currentCampaign),
+    [currentCampaign]
+  );
 
   // Selected criteria for this campaign (memoized để không re-render làm mất điểm đang chấm)
   const selectedCritIds = useMemo(() => {
@@ -117,7 +122,7 @@ export const EvaluationForm: React.FC = () => {
   };
 
   const handleScoreChange = (criterionId: string, score: number) => {
-    if (currentCampaign?.isLocked) return;
+    if (!evalState.isOpen) return;
     setCurrentScores((prev) => ({
       ...prev,
       [criterionId]: {
@@ -130,7 +135,7 @@ export const EvaluationForm: React.FC = () => {
   };
 
   const handleReasonChange = (criterionId: string, text: string) => {
-    if (currentCampaign?.isLocked) return;
+    if (!evalState.isOpen) return;
     setCurrentScores((prev) => ({
       ...prev,
       [criterionId]: {
@@ -174,8 +179,8 @@ export const EvaluationForm: React.FC = () => {
   };
 
   const handleSaveEvaluation = async () => {
-    if (currentCampaign?.isLocked) {
-      showNotification('Đợt đánh giá đã bị khóa! Không thể cập nhật kết quả.', 'error');
+    if (!evalState.isOpen) {
+      showNotification(evalState.reasonMessage || 'Đợt đánh giá đã bị khóa! Không thể cập nhật kết quả.', 'error');
       return;
     }
 
@@ -250,38 +255,72 @@ export const EvaluationForm: React.FC = () => {
             onChange={(e) => setSelectedCampaignId(e.target.value)}
             className="text-xs font-semibold border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#005baa]"
           >
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.isLocked ? '(Đã Khóa)' : '(Đang Mở)'}
-              </option>
-            ))}
+            {campaigns.map((c) => {
+              const cState = getCampaignEvaluationState(c);
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({cState.statusLabel})
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
 
-      {/* Lock Warning Banner */}
-      {currentCampaign?.isLocked ? (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3">
-          <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+      {/* Lock / Time Schedule Warning Banner */}
+      {!evalState.isOpen ? (
+        <div
+          className={`p-4 rounded-xl border text-xs flex items-start gap-3 ${
+            evalState.isAutoLocked
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : evalState.isManualLocked
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : 'bg-sky-50 border-sky-200 text-sky-900'
+          }`}
+        >
+          {evalState.isAutoLocked ? (
+            <Clock className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          ) : evalState.isManualLocked ? (
+            <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          ) : (
+            <Clock className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+          )}
           <div>
-            <h4 className="font-bold text-sm text-amber-800">
-              ĐỢT ĐÁNH GIÁ ĐÃ BỊ KHÓA BỞI QUẢN TRỊ VIÊN
+            <h4
+              className={`font-bold text-sm ${
+                evalState.isAutoLocked
+                  ? 'text-rose-900'
+                  : evalState.isManualLocked
+                  ? 'text-amber-800'
+                  : 'text-sky-900'
+              }`}
+            >
+              {evalState.isAutoLocked
+                ? 'ĐỢT ĐÁNH GIÁ ĐÃ HẾT HẠN - HỆ THỐNG TỰ ĐỘNG KHÓA'
+                : evalState.isManualLocked
+                ? 'ĐỢT ĐÁNH GIÁ ĐÃ BỊ KHÓA BỞI QUẢN TRỊ VIÊN'
+                : 'CHƯA ĐẾN THỜI GIAN MỞ ĐÁNH GIÁ'}
             </h4>
             <p className="mt-1 leading-relaxed">
-              Thời hạn đánh giá cho chu kỳ <strong>{currentCampaign.name}</strong> đã kết thúc hoặc bị khóa dữ liệu. Đồng chí chỉ có quyền xem lại kết quả đã đánh giá trước đó, không được phép thay đổi. Chỉ khi Quản trị viên mở lại thời gian thì mới được phép sửa nội dung đánh giá.
+              {evalState.reasonMessage} Đồng chí chỉ có quyền xem lại kết quả đã đánh giá (nếu có), không được phép thêm hoặc sửa đổi điểm.
             </p>
           </div>
         </div>
       ) : (
-        <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-center justify-between">
+        <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Unlock className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              Đợt đánh giá <strong>{currentCampaign?.name}</strong> đang mở tiếp nhận. Đồng chí có quyền sửa lại đánh giá bất kỳ lúc nào trước khi hệ thống bị khóa.
+              Đợt đánh giá <strong>{currentCampaign?.name}</strong> đang mở tiếp nhận.{' '}
+              {currentCampaign?.endDate && (
+                <span className="text-slate-600">
+                  (Hạn chót: <strong>{new Date(currentCampaign.endDate).toLocaleString('vi-VN')}</strong>)
+                </span>
+              )}
             </span>
           </div>
-          <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            Được Phép Sửa
+          <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0 text-center">
+            {evalState.remainingText ? `Đang Mở · ${evalState.remainingText}` : 'Đang Mở'}
           </span>
         </div>
       )}
@@ -462,7 +501,7 @@ export const EvaluationForm: React.FC = () => {
                           <button
                             key={scoreVal}
                             type="button"
-                            disabled={currentCampaign?.isLocked}
+                            disabled={!evalState.isOpen}
                             onClick={() => handleScoreChange(c.id, scoreVal)}
                             className={`py-2 rounded-lg font-bold text-xs sm:text-sm transition-all text-center flex flex-col items-center justify-center ${
                               isSelected
@@ -500,7 +539,7 @@ export const EvaluationForm: React.FC = () => {
 
                       <textarea
                         rows={3}
-                        disabled={currentCampaign?.isLocked}
+                        disabled={!evalState.isOpen}
                         value={reason}
                         onChange={(e) => handleReasonChange(c.id, e.target.value)}
                         placeholder="Nêu rõ nội dung, sự việc cụ thể và vướng mắc trong công tác phối hợp khiến đơn vị bị chấm điểm thấp (tối thiểu 50 ký tự)..."
@@ -524,7 +563,7 @@ export const EvaluationForm: React.FC = () => {
                     <div className="mt-3">
                       <input
                         type="text"
-                        disabled={currentCampaign?.isLocked}
+                        disabled={!evalState.isOpen}
                         value={reason}
                         onChange={(e) => handleReasonChange(c.id, e.target.value)}
                         placeholder="Ý kiến góp ý / Ghi chú bổ sung (Không bắt buộc)..."
@@ -540,18 +579,24 @@ export const EvaluationForm: React.FC = () => {
           {/* Action Bar Footer */}
           <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="text-xs text-slate-500">
-              <span className="font-semibold text-slate-700">Lưu ý:</span> Kết quả được đồng bộ trực tiếp lên CSDL Cloudflare D1. Bạn có thể cập nhật lại bất kỳ lúc nào trước khi đợt đánh giá bị khóa.
+              <span className="font-semibold text-slate-700">Lưu ý:</span> Kết quả được đồng bộ trực tiếp lên CSDL Cloudflare D1. Bạn có thể cập nhật lại bất kỳ lúc nào trước khi đợt đánh giá bị khóa hoặc hết hạn.
             </div>
 
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                disabled={currentCampaign?.isLocked || isSaving}
+                disabled={!evalState.isOpen || isSaving}
                 onClick={handleSaveEvaluation}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>{isSaving ? 'Đang lưu D1...' : 'Lưu Đánh Giá Lên CSDL D1'}</span>
+                <span>
+                  {!evalState.isOpen
+                    ? `Đợt Đã Khóa (${evalState.statusLabel})`
+                    : isSaving
+                    ? 'Đang lưu D1...'
+                    : 'Lưu Đánh Giá Lên CSDL D1'}
+                </span>
               </button>
             </div>
           </div>

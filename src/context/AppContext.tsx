@@ -65,6 +65,7 @@ interface AppContextType {
   deleteCriterion: (id: string) => Promise<boolean>;
   // Evaluation operations
   saveEvaluation: (record: EvaluationRecord) => Promise<boolean>;
+  deleteEvaluation: (evaluationId: string) => Promise<boolean>;
   // D1 Config operations
   setD1WorkerUrl: (url: string) => void;
   testD1Connection: (url: string, token?: string) => Promise<{ success: boolean; latencyMs: number; message: string; tablesCount?: number }>;
@@ -573,6 +574,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  const deleteEvaluation = async (evaluationId: string): Promise<boolean> => {
+    setEvaluations((prev) => prev.filter((e) => e.id !== evaluationId));
+    await d1Client.deleteEvaluation(evaluationId);
+    return true;
+  };
+
   const setD1WorkerUrl = (url: string) => {
     d1Client.setStoredWorkerUrl(url);
     setD1Status((prev) => ({ ...prev, workerUrl: url }));
@@ -632,6 +639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveCriterion,
         deleteCriterion,
         saveEvaluation,
+        deleteEvaluation,
         setD1WorkerUrl,
         testD1Connection,
         initD1Schema,

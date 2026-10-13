@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Campaign, CampaignEvaluator, Criterion, PeriodType } from '../types';
+import { getCampaignEvaluationState } from '../utils/campaignSchedule';
 import {
   CalendarCheck,
   Building2,
@@ -111,7 +112,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
     periodType: 'QUARTER' as PeriodType,
     periodValue: 'Q2-2026',
     startDate: '2026-04-01',
+    startTime: '08:00',
     endDate: '2026-06-30',
+    endTime: '23:59',
     description: '',
   });
 
@@ -432,13 +435,16 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
   // =========================================================================
   const openCreateCampModal = () => {
     setEditingCampaign(null);
+    const today = new Date().toISOString().split('T')[0];
     setCampForm({
       code: `DG-Q${Math.floor(Math.random() * 4) + 1}-2026`,
       name: '',
       periodType: 'QUARTER',
       periodValue: 'Q2-2026',
-      startDate: '2026-04-01',
+      startDate: today,
+      startTime: '08:00',
       endDate: '2026-06-30',
+      endTime: '23:59',
       description: '',
     });
     setIsCreateCampModalOpen(true);
@@ -446,13 +452,37 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
 
   const openEditCampModal = (camp: Campaign) => {
     setEditingCampaign(camp);
+    let sDate = '2026-04-01';
+    let sTime = '08:00';
+    if (camp.startDate) {
+      if (camp.startDate.includes('T')) {
+        const [d, t] = camp.startDate.split('T');
+        sDate = d;
+        sTime = (t || '').substring(0, 5) || '08:00';
+      } else {
+        sDate = camp.startDate;
+      }
+    }
+    let eDate = '2026-06-30';
+    let eTime = '23:59';
+    if (camp.endDate) {
+      if (camp.endDate.includes('T')) {
+        const [d, t] = camp.endDate.split('T');
+        eDate = d;
+        eTime = (t || '').substring(0, 5) || '23:59';
+      } else {
+        eDate = camp.endDate;
+      }
+    }
     setCampForm({
       code: camp.code,
       name: camp.name,
       periodType: camp.periodType,
       periodValue: camp.periodValue,
-      startDate: camp.startDate ? camp.startDate.split('T')[0] : '2026-04-01',
-      endDate: camp.endDate ? camp.endDate.split('T')[0] : '2026-06-30',
+      startDate: sDate,
+      startTime: sTime,
+      endDate: eDate,
+      endTime: eTime,
       description: camp.description || '',
     });
     setIsCreateCampModalOpen(true);
@@ -484,6 +514,14 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
       return;
     }
 
+    const startDateTime = `${campForm.startDate}T${campForm.startTime || '00:00'}:00`;
+    const endDateTime = `${campForm.endDate}T${campForm.endTime || '23:59'}:59`;
+
+    if (new Date(endDateTime) <= new Date(startDateTime)) {
+      showNotification('Hạn chót kết thúc đánh giá phải sau thời gian mở đánh giá!', 'error');
+      return;
+    }
+
     if (editingCampaign) {
       // Sửa đợt đánh giá hiện có
       const updatedCamp: Campaign = {
@@ -492,8 +530,8 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
         name: campForm.name.trim(),
         periodType: campForm.periodType,
         periodValue: campForm.periodValue.trim(),
-        startDate: new Date(campForm.startDate).toISOString(),
-        endDate: new Date(campForm.endDate).toISOString(),
+        startDate: startDateTime,
+        endDate: endDateTime,
         description: campForm.description,
       };
 
@@ -508,8 +546,8 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
         name: campForm.name.trim(),
         periodType: campForm.periodType,
         periodValue: campForm.periodValue.trim(),
-        startDate: new Date(campForm.startDate).toISOString(),
-        endDate: new Date(campForm.endDate).toISOString(),
+        startDate: startDateTime,
+        endDate: endDateTime,
         isLocked: false,
         description: campForm.description,
         createdAt: new Date().toISOString(),
@@ -809,15 +847,35 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                             Đang Chọn
                           </span>
                         )}
-                        {camp.isLocked ? (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                            <Lock className="w-3 h-3" /> Đã Khóa
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                            <Unlock className="w-3 h-3" /> Đang Mở
-                          </span>
-                        )}
+                        {(() => {
+                          const state = getCampaignEvaluationState(camp);
+                          if (state.isAutoLocked) {
+                            return (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-rose-600" /> Hết Hạn (Tự Động Khóa)
+                              </span>
+                            );
+                          }
+                          if (state.isManualLocked) {
+                            return (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                <Lock className="w-3 h-3" /> Đã Khóa Thủ Công
+                              </span>
+                            );
+                          }
+                          if (state.isNotStarted) {
+                            return (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-sky-600" /> Chưa Mở
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                              <Unlock className="w-3 h-3" /> Đang Mở Đánh Giá {state.remainingText ? `(${state.remainingText})` : ''}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <p className="text-xs text-slate-500">{camp.description || 'Không có mô tả chi tiết'}</p>
@@ -828,8 +886,8 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                         </span>
                         <span>·</span>
                         <span>
-                          Thời gian: {new Date(camp.startDate).toLocaleDateString('vi-VN')} &ndash;{' '}
-                          {new Date(camp.endDate).toLocaleDateString('vi-VN')}
+                          Mở: {new Date(camp.startDate).toLocaleDateString('vi-VN')} &ndash;{' '}
+                          Hạn chót: {new Date(camp.endDate).toLocaleString('vi-VN')}
                         </span>
                         <span>·</span>
                         <span className="text-slate-700 font-semibold">
@@ -1753,35 +1811,72 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Ngày Bắt Đầu
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={campForm.startDate}
-                    onChange={(e) =>
-                      setCampForm({ ...campForm, startDate: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005baa]"
-                  />
+              {/* Cấu hình thời gian mở và hạn chót tự động khóa */}
+              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#005baa]">
+                  <Clock className="w-4 h-4 text-[#005baa]" />
+                  <span>THỜI GIAN MỞ & HẠN CHÓT TỰ ĐỘNG KHÓA ĐÁNH GIÁ</span>
                 </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Thiết lập chính xác ngày và giờ mở đợt và hạn chót. Khi đến hạn, hệ thống sẽ <strong>tự động khóa đợt</strong> không cho cán bộ chấm điểm hoặc sửa đổi thêm.
+                </p>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Ngày Kết Thúc
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={campForm.endDate}
-                    onChange={(e) =>
-                      setCampForm({ ...campForm, endDate: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005baa]"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Thời Điểm Mở Đánh Giá
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="date"
+                        required
+                        value={campForm.startDate}
+                        onChange={(e) =>
+                          setCampForm({ ...campForm, startDate: e.target.value })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa]"
+                        title="Ngày mở đợt đánh giá"
+                      />
+                      <input
+                        type="time"
+                        required
+                        value={campForm.startTime}
+                        onChange={(e) =>
+                          setCampForm({ ...campForm, startTime: e.target.value })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa]"
+                        title="Giờ mở đợt đánh giá"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Hạn Chót Đóng (Tự Động Khóa)
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="date"
+                        required
+                        value={campForm.endDate}
+                        onChange={(e) =>
+                          setCampForm({ ...campForm, endDate: e.target.value })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa]"
+                        title="Ngày hết hạn đánh giá"
+                      />
+                      <input
+                        type="time"
+                        required
+                        value={campForm.endTime}
+                        onChange={(e) =>
+                          setCampForm({ ...campForm, endTime: e.target.value })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa]"
+                        title="Giờ hết hạn đánh giá"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

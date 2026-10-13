@@ -741,6 +741,24 @@ export const d1Client = {
     return true;
   },
 
+  async deleteEvaluation(id: string): Promise<boolean> {
+    inMemoryStore.evaluations = inMemoryStore.evaluations.filter((e) => e.id !== id);
+    persistStoreToStorage(inMemoryStore);
+
+    const workerUrl = this.getStoredWorkerUrl();
+    if (workerUrl) {
+      try {
+        await fetch(this.buildUrl(`/api/evaluations/${id}`), {
+          method: 'DELETE',
+          headers: this.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.warn('Xóa evaluation trên D1:', e);
+      }
+    }
+    return true;
+  },
+
   async updateAvatar(userId: string, avatarUrl: string): Promise<boolean> {
     const user = inMemoryStore.users.find((u) => u.id === userId);
     if (user) {

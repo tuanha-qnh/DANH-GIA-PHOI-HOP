@@ -24,8 +24,8 @@ import { d1Client } from '../services/d1Client';
 
 export const LoginModal: React.FC = () => {
   const { login, refreshData, setD1WorkerUrl, testD1Connection } = useApp();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState(DEFAULT_PASSWORD);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -229,47 +229,6 @@ export const LoginModal: React.FC = () => {
               </button>
             </div>
 
-            {/* Quick Demo Accounts */}
-            <div className="pt-3 border-t border-slate-100">
-              <p className="text-[11px] font-semibold text-slate-500 mb-2">
-                Chọn nhanh tài khoản thử nghiệm:
-              </p>
-              <div className="grid grid-cols-3 gap-1.5 text-[10px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUsername('admin');
-                    setPassword('Vnpt@2026');
-                  }}
-                  className="p-1.5 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 font-semibold text-center transition-colors truncate"
-                  title="Tài khoản Quản Trị Viên (toàn quyền)"
-                >
-                  Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUsername('nguyenvanan');
-                    setPassword('Vnpt@2026');
-                  }}
-                  className="p-1.5 rounded border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-semibold text-center transition-colors truncate"
-                  title="Tài khoản Cán Bộ Đánh Giá"
-                >
-                  Người ĐG
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUsername('nguoixembaocao');
-                    setPassword('Vnpt@2026');
-                  }}
-                  className="p-1.5 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-center transition-colors truncate"
-                  title="Tài khoản Người Xem Báo Cáo (chỉ xem báo cáo & cài đặt)"
-                >
-                  Xem Báo Cáo
-                </button>
-              </div>
-            </div>
           </form>
 
           {/* Footer note & subtle setting button */}

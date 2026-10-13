@@ -388,6 +388,12 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
+      if (pathname.startsWith('/api/evaluations/') && request.method === 'DELETE') {
+        const id = pathname.split('/').pop();
+        await db.prepare("DELETE FROM evaluations WHERE id = ?").bind(id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       if (pathname === '/api/evaluators/save-batch' && request.method === 'POST') {
         const { campaignId, evaluators } = await request.json();
         await db.prepare("DELETE FROM campaign_evaluators WHERE campaign_id = ?").bind(campaignId).run();
