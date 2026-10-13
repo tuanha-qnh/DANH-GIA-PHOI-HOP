@@ -22,6 +22,7 @@ import {
 
 export const ReportStatistics: React.FC = () => {
   const {
+    currentUser,
     campaigns,
     units,
     users,
@@ -32,6 +33,8 @@ export const ReportStatistics: React.FC = () => {
     evaluators,
     deleteEvaluation,
   } = useApp();
+
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(
     campaigns[0]?.id || ''
@@ -218,8 +221,13 @@ export const ReportStatistics: React.FC = () => {
     });
   });
 
-  // Xóa đánh giá chi tiết
+  // Xóa đánh giá chi tiết (Chỉ dành cho Admin)
   const handleConfirmDeleteEvaluation = async () => {
+    if (!isAdmin) {
+      showToast('Chỉ tài khoản Quản trị viên (Admin) mới có quyền xóa kết quả đánh giá!', 'error');
+      setEvalToDelete(null);
+      return;
+    }
     if (!evalToDelete) return;
     setIsDeleting(true);
     try {
@@ -694,13 +702,13 @@ export const ReportStatistics: React.FC = () => {
                     <th className="py-3 px-4">Tiêu Chí</th>
                     <th className="py-3 px-4 text-center">Điểm</th>
                     <th className="py-3 px-4">Ý Kiến / Lý Do Chấm Điểm Thấp</th>
-                    <th className="py-3 px-4 text-center print:hidden">Thao Tác</th>
+                    {isAdmin && <th className="py-3 px-4 text-center print:hidden">Thao Tác</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {detailedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={isAdmin ? 7 : 6} className="py-8 text-center text-slate-400">
                         Chưa có dữ liệu chi tiết nào phù hợp với bộ lọc
                       </td>
                     </tr>
@@ -755,26 +763,28 @@ export const ReportStatistics: React.FC = () => {
                               <span className="text-slate-400 italic text-[11px]">Không có ghi chú</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-center print:hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEvalToDelete({
-                                  evalId: row.evalId,
-                                  evaluatorName: row.evaluatorName,
-                                  evaluatorUnitName: row.evaluatorUnitName,
-                                  targetUnitName: row.targetUnitName,
-                                  criterionName: `${row.criterionCode} - ${row.criterionName}`,
-                                  score: row.score,
-                                })
-                              }
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer"
-                              title="Xóa phiếu đánh giá này khỏi hệ thống & CSDL D1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Xóa</span>
-                            </button>
-                          </td>
+                          {isAdmin && (
+                            <td className="py-3 px-4 text-center print:hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEvalToDelete({
+                                    evalId: row.evalId,
+                                    evaluatorName: row.evaluatorName,
+                                    evaluatorUnitName: row.evaluatorUnitName,
+                                    targetUnitName: row.targetUnitName,
+                                    criterionName: `${row.criterionCode} - ${row.criterionName}`,
+                                    score: row.score,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer"
+                                title="Xóa phiếu đánh giá này khỏi hệ thống & CSDL D1 (Chỉ Admin)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Xóa</span>
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -786,8 +796,8 @@ export const ReportStatistics: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {evalToDelete && (
+      {/* Delete Confirmation Modal (Chỉ dành cho Admin) */}
+      {isAdmin && evalToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95">
             <div className="bg-rose-600 px-6 py-4 text-white flex items-center justify-between">
