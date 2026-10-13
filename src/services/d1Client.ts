@@ -585,6 +585,29 @@ export const d1Client = {
     return true;
   },
 
+  async deleteCampaign(campaignId: string): Promise<boolean> {
+    inMemoryStore.campaigns = inMemoryStore.campaigns.filter((c) => c.id !== campaignId);
+    inMemoryStore.targetUnits = inMemoryStore.targetUnits.filter((t) => t.campaignId !== campaignId);
+    inMemoryStore.evaluatingUnits = inMemoryStore.evaluatingUnits.filter((e) => e.campaignId !== campaignId);
+    inMemoryStore.campaignCriteria = inMemoryStore.campaignCriteria.filter((c) => c.campaignId !== campaignId);
+    inMemoryStore.evaluators = inMemoryStore.evaluators.filter((ev) => ev.campaignId !== campaignId);
+    inMemoryStore.evaluations = inMemoryStore.evaluations.filter((ev) => ev.campaignId !== campaignId);
+    persistStoreToStorage(inMemoryStore);
+
+    const workerUrl = this.getStoredWorkerUrl();
+    if (workerUrl) {
+      try {
+        await fetch(this.buildUrl(`/api/campaigns/${campaignId}`), {
+          method: 'DELETE',
+          headers: this.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.warn('Xóa đợt đánh giá trên D1 (đã lưu trữ an toàn trong trình duyệt):', e);
+      }
+    }
+    return true;
+  },
+
   async saveCampaignConfig(
     campaignId: string,
     targetUnitIds: string[],
@@ -689,7 +712,13 @@ export const d1Client = {
   },
 
   async saveEvaluation(evaluation: EvaluationRecord): Promise<boolean> {
-    const idx = inMemoryStore.evaluations.findIndex((e) => e.id === evaluation.id);
+    const idx = inMemoryStore.evaluations.findIndex(
+      (e) =>
+        e.id === evaluation.id ||
+        (e.campaignId === evaluation.campaignId &&
+          e.evaluatorId === evaluation.evaluatorId &&
+          e.targetUnitId === evaluation.targetUnitId)
+    );
     if (idx >= 0) {
       inMemoryStore.evaluations[idx] = evaluation;
     } else {

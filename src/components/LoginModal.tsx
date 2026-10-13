@@ -228,6 +228,48 @@ export const LoginModal: React.FC = () => {
                 <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ CSDL D1'}</span>
               </button>
             </div>
+
+            {/* Quick Demo Accounts */}
+            <div className="pt-3 border-t border-slate-100">
+              <p className="text-[11px] font-semibold text-slate-500 mb-2">
+                Chọn nhanh tài khoản thử nghiệm:
+              </p>
+              <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUsername('admin');
+                    setPassword('Vnpt@2026');
+                  }}
+                  className="p-1.5 rounded border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 font-semibold text-center transition-colors truncate"
+                  title="Tài khoản Quản Trị Viên (toàn quyền)"
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUsername('nguyenvanan');
+                    setPassword('Vnpt@2026');
+                  }}
+                  className="p-1.5 rounded border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-semibold text-center transition-colors truncate"
+                  title="Tài khoản Cán Bộ Đánh Giá"
+                >
+                  Người ĐG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUsername('nguoixembaocao');
+                    setPassword('Vnpt@2026');
+                  }}
+                  className="p-1.5 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-center transition-colors truncate"
+                  title="Tài khoản Người Xem Báo Cáo (chỉ xem báo cáo & cài đặt)"
+                >
+                  Xem Báo Cáo
+                </button>
+              </div>
+            </div>
           </form>
 
           {/* Footer note & subtle setting button */}

@@ -44,7 +44,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentUser } = useApp();
   const isAdmin = currentUser?.role === 'ADMIN';
-  const canViewReports = isAdmin || currentUser?.canViewReports;
+  const isReportViewer = currentUser?.role === 'REPORT_VIEWER';
+  const canViewReports = isAdmin || isReportViewer || currentUser?.canViewReports;
 
   const adminNavItems: Array<{ id: NavTab; label: string; icon: React.ElementType; badge?: string }> = [
     { id: 'dashboard', label: 'Bảng Điều Khiển & Tiến Độ', icon: LayoutDashboard },
@@ -59,13 +60,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings', label: 'Cài Đặt Cá Nhân', icon: Settings },
   ];
 
+  const reportViewerNavItems: Array<{ id: NavTab; label: string; icon: React.ElementType; badge?: string }> = [
+    { id: 'reports', label: 'Báo Cáo Thống Kê', icon: BarChart3 },
+    { id: 'settings', label: 'Cài Đặt Cá Nhân', icon: Settings },
+  ];
+
   const userNavItems: Array<{ id: NavTab; label: string; icon: React.ElementType; badge?: string }> = [
     { id: 'evaluate', label: 'Đánh Giá Công Tác Phối Hợp', icon: CheckSquare },
     ...(canViewReports ? [{ id: 'reports' as NavTab, label: 'Báo Cáo Thống Kê', icon: BarChart3 }] : []),
     { id: 'settings', label: 'Cài Đặt Cá Nhân', icon: Settings },
   ];
 
-  const items = isAdmin ? adminNavItems : userNavItems;
+  const items = isAdmin
+    ? adminNavItems
+    : isReportViewer
+    ? reportViewerNavItems
+    : userNavItems;
 
   const handleSelect = (tab: NavTab) => {
     onSelectTab(tab);
@@ -94,7 +104,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation Category Label */}
         <div className="px-4 pt-4 pb-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            {isAdmin ? 'Quản Trị VNPT' : 'Cán Bộ Đánh Giá'}
+            {isAdmin
+              ? 'Quản Trị VNPT'
+              : isReportViewer
+              ? 'Người Xem Báo Cáo'
+              : 'Cán Bộ Đánh Giá'}
           </p>
         </div>
 

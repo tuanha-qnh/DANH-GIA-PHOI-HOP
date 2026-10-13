@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export const ReportStatistics: React.FC = () => {
-  const { campaigns, units, users, criteria, evaluations } = useApp();
+  const { campaigns, units, users, criteria, evaluations, targetUnits } = useApp();
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(
     campaigns[0]?.id || ''
   );
@@ -35,11 +35,23 @@ export const ReportStatistics: React.FC = () => {
     (e) => e.campaignId === currentCampaign?.id && e.status === 'SUBMITTED'
   );
 
+  // Chỉ lấy các đơn vị được tham gia đánh giá trong đợt này
+  const campaignTargetUnitIds = targetUnits
+    .filter((t) => t.campaignId === currentCampaign?.id)
+    .map((t) => t.unitId);
+
+  const participatingTargetUnits = units.filter((u) => {
+    if (campaignTargetUnitIds.length > 0) {
+      return campaignTargetUnitIds.includes(u.id);
+    }
+    // Nếu đợt chưa cấu hình danh sách đơn vị, chỉ hiển thị đơn vị đã có phiếu đánh giá thực tế
+    return campaignEvals.some((e) => e.targetUnitId === u.id);
+  });
+
   // =========================================================================
-  // SUMMARY CALCULATIONS (Báo cáo tổng hợp theo từng đơn vị)
+  // SUMMARY CALCULATIONS (Báo cáo tổng hợp theo từng đơn vị được tham gia)
   // =========================================================================
-  const summaryByTargetUnit = units
-    .filter((u) => u.level <= 2 && u.id !== 'u-root')
+  const summaryByTargetUnit = participatingTargetUnits
     .map((unit) => {
       const receivedEvals = campaignEvals.filter((e) => e.targetUnitId === unit.id);
       const evalCount = receivedEvals.length;
@@ -271,7 +283,14 @@ export const ReportStatistics: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {summaryByTargetUnit.map((item, index) => {
+                  {summaryByTargetUnit.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        Chưa có đơn vị nào được chọn tham gia đánh giá trong đợt này
+                      </td>
+                    </tr>
+                  ) : (
+                    summaryByTargetUnit.map((item, index) => {
                     const rank =
                       item.avgScore >= 8.5
                         ? { label: 'Xuất sắc', color: 'text-emerald-700 font-bold' }
@@ -317,7 +336,8 @@ export const ReportStatistics: React.FC = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                )}
                 </tbody>
               </table>
             </div>
@@ -339,14 +359,12 @@ export const ReportStatistics: React.FC = () => {
                 onChange={(e) => setFilterTargetUnitId(e.target.value)}
                 className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa]"
               >
-                <option value="ALL">Toàn tỉnh (Tất cả đơn vị)</option>
-                {units
-                  .filter((u) => u.level <= 2 && u.id !== 'u-root')
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
+                <option value="ALL">Tất cả {participatingTargetUnits.length} đơn vị tham gia</option>
+                {participatingTargetUnits.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.code})
+                  </option>
+                ))}
               </select>
             </div>
 

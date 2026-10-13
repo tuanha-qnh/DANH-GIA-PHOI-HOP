@@ -219,6 +219,19 @@ export const INITIAL_USERS: User[] = [
     status: 'ACTIVE',
     createdAt: '2026-01-05T00:00:00Z',
   },
+  {
+    id: 'user-bgs-viewer',
+    hrmCode: 'HRM-10901',
+    fullName: 'Đoàn Thanh Tùng - Ban Giám Sát',
+    unitId: 'u-root',
+    username: 'nguoixembaocao',
+    role: 'REPORT_VIEWER',
+    mustChangePassword: false,
+    canViewReports: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    status: 'ACTIVE',
+    createdAt: '2026-01-06T00:00:00Z',
+  },
 ];
 
 export const INITIAL_CRITERIA: Criterion[] = [

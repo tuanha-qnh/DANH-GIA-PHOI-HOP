@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { EvaluationRecord, CriterionScore } from '../types';
 import {
@@ -42,24 +42,33 @@ export const EvaluationForm: React.FC = () => {
 
   const currentCampaign = campaigns.find((c) => c.id === selectedCampaignId) || campaigns[0];
 
-  // Selected criteria for this campaign (nếu có cấu hình thì lọc theo đợt, nếu chưa thì hiển thị tất cả)
-  const selectedCritIds = campaignCriteria
-    .filter((cc) => cc.campaignId === currentCampaign?.id)
-    .map((cc) => cc.criterionId);
+  // Selected criteria for this campaign (memoized để không re-render làm mất điểm đang chấm)
+  const selectedCritIds = useMemo(() => {
+    return campaignCriteria
+      .filter((cc) => cc.campaignId === currentCampaign?.id)
+      .map((cc) => cc.criterionId);
+  }, [campaignCriteria, currentCampaign?.id]);
 
-  const activeCriteria = selectedCritIds.length > 0
-    ? criteria.filter((c) => selectedCritIds.includes(c.id))
-    : criteria;
+  const activeCriteria = useMemo(() => {
+    return selectedCritIds.length > 0
+      ? criteria.filter((c) => selectedCritIds.includes(c.id))
+      : criteria;
+  }, [selectedCritIds, criteria]);
 
   // Target units assigned for this campaign
-  const campaignTargetUnitIds = targetUnits
-    .filter((t) => t.campaignId === currentCampaign?.id)
-    .map((t) => t.unitId);
+  const campaignTargetUnitIds = useMemo(() => {
+    return targetUnits
+      .filter((t) => t.campaignId === currentCampaign?.id)
+      .map((t) => t.unitId);
+  }, [targetUnits, currentCampaign?.id]);
 
   // Units that user should evaluate: exclude own unit if desired, or all designated target units
-  const targetUnitsToEvaluate = units.filter(
-    (u) => campaignTargetUnitIds.includes(u.id) && u.id !== currentUser?.unitId
-  );
+  const targetUnitsToEvaluate = useMemo(() => {
+    const list = units.filter(
+      (u) => campaignTargetUnitIds.includes(u.id) && u.id !== currentUser?.unitId
+    );
+    return list.length > 0 ? list : units.filter((u) => campaignTargetUnitIds.includes(u.id));
+  }, [units, campaignTargetUnitIds, currentUser?.unitId]);
 
   const [activeTargetUnitId, setActiveTargetUnitId] = useState<string>('');
 
@@ -69,10 +78,12 @@ export const EvaluationForm: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sync active target unit initially
+  // Sync active target unit initially or when campaign changes
   useEffect(() => {
-    if (targetUnitsToEvaluate.length > 0 && !activeTargetUnitId) {
-      setActiveTargetUnitId(targetUnitsToEvaluate[0].id);
+    if (targetUnitsToEvaluate.length > 0) {
+      if (!activeTargetUnitId || !targetUnitsToEvaluate.some((u) => u.id === activeTargetUnitId)) {
+        setActiveTargetUnitId(targetUnitsToEvaluate[0].id);
+      }
     }
   }, [targetUnitsToEvaluate, activeTargetUnitId]);
 
@@ -87,10 +98,10 @@ export const EvaluationForm: React.FC = () => {
         e.targetUnitId === activeTargetUnitId
     );
 
-    if (existing && existing.scores) {
+    if (existing && existing.scores && Object.keys(existing.scores).length > 0) {
       setCurrentScores(existing.scores);
     } else {
-      // Default empty or neutral 8 scores
+      // Khởi tạo điểm mặc định 8 điểm
       const initial: Record<string, CriterionScore> = {};
       activeCriteria.forEach((c) => {
         initial[c.id] = { score: 8, lowScoreReason: '' };
@@ -98,7 +109,7 @@ export const EvaluationForm: React.FC = () => {
       setCurrentScores(initial);
     }
     setValidationErrors([]);
-  }, [selectedCampaignId, activeTargetUnitId, currentUser, currentCampaign, activeCriteria]);
+  }, [selectedCampaignId, activeTargetUnitId, currentUser?.id]);
 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -184,8 +195,12 @@ export const EvaluationForm: React.FC = () => {
           e.targetUnitId === activeTargetUnitId
       );
 
+      const evalId =
+        existing?.id ||
+        `eval-${currentCampaign.id}-${currentUser.id}-${activeTargetUnitId}`;
+
       const record: EvaluationRecord = {
-        id: existing?.id || `eval-${Date.now()}`,
+        id: evalId,
         campaignId: currentCampaign.id,
         evaluatorId: currentUser.id,
         evaluatorUnitId: currentUser.unitId,

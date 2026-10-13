@@ -21,12 +21,20 @@ import { D1ConfigModule } from './components/D1ConfigModule';
 const MainLayout: React.FC = () => {
   const { currentUser } = useApp();
   const isAdmin = currentUser?.role === 'ADMIN';
+  const isReportViewer = currentUser?.role === 'REPORT_VIEWER';
 
-  // Default starting tab: Dashboard for admin, Evaluate for regular user
+  // Default starting tab: Dashboard for admin, Reports for report viewer, Evaluate for regular user
   const [currentTab, setCurrentTab] = useState<NavTab>(
-    isAdmin ? 'dashboard' : 'evaluate'
+    isAdmin ? 'dashboard' : isReportViewer ? 'reports' : 'evaluate'
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Auto redirect REPORT_VIEWER if on unauthorized tab
+  React.useEffect(() => {
+    if (isReportViewer && currentTab !== 'reports' && currentTab !== 'settings') {
+      setCurrentTab('reports');
+    }
+  }, [isReportViewer, currentTab]);
 
   // If user is not logged in, show mandatory login screen
   if (!currentUser) {
@@ -43,7 +51,9 @@ const MainLayout: React.FC = () => {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isSidebarOpen={isSidebarOpen}
         onNavigateToSettings={() => setCurrentTab('settings')}
-        onNavigateToD1={() => setCurrentTab('d1-config')}
+        onNavigateToD1={() => {
+          if (isAdmin) setCurrentTab('d1-config');
+        }}
       />
 
       {/* Main Workspace Layout */}
@@ -78,10 +88,10 @@ const MainLayout: React.FC = () => {
             <CampaignManagement initialStep="step3_criteria" />
           )}
 
-          {currentTab === 'evaluate' && <EvaluationForm />}
+          {currentTab === 'evaluate' && !isReportViewer && <EvaluationForm />}
 
           {currentTab === 'reports' && (
-            (isAdmin || currentUser.canViewReports) ? (
+            (isAdmin || currentUser.canViewReports || isReportViewer) ? (
               <ReportStatistics />
             ) : (
               <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">

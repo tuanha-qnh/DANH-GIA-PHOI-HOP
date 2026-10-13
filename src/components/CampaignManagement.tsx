@@ -49,6 +49,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
     evaluators,
     evaluations,
     saveCampaign,
+    deleteCampaign,
     toggleCampaignLock,
     saveCampaignConfig,
     toggleTargetUnit,
@@ -100,8 +101,10 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
     type: 'success' | 'error';
   } | null>(null);
 
-  // Create Campaign Modal
+  // Create / Edit Campaign Modal
   const [isCreateCampModalOpen, setIsCreateCampModalOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
   const [campForm, setCampForm] = useState({
     code: '',
     name: '',
@@ -424,47 +427,114 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
   };
 
   // =========================================================================
-  // TẠO MỚI ĐỢT ĐÁNH GIÁ (BƯỚC 1)
   // =========================================================================
-  const handleCreateCampaign = async (e: React.FormEvent) => {
+  // THÊM / SỬA / XÓA ĐỢT ĐÁNH GIÁ (BƯỚC 1)
+  // =========================================================================
+  const openCreateCampModal = () => {
+    setEditingCampaign(null);
+    setCampForm({
+      code: `DG-Q${Math.floor(Math.random() * 4) + 1}-2026`,
+      name: '',
+      periodType: 'QUARTER',
+      periodValue: 'Q2-2026',
+      startDate: '2026-04-01',
+      endDate: '2026-06-30',
+      description: '',
+    });
+    setIsCreateCampModalOpen(true);
+  };
+
+  const openEditCampModal = (camp: Campaign) => {
+    setEditingCampaign(camp);
+    setCampForm({
+      code: camp.code,
+      name: camp.name,
+      periodType: camp.periodType,
+      periodValue: camp.periodValue,
+      startDate: camp.startDate ? camp.startDate.split('T')[0] : '2026-04-01',
+      endDate: camp.endDate ? camp.endDate.split('T')[0] : '2026-06-30',
+      description: camp.description || '',
+    });
+    setIsCreateCampModalOpen(true);
+  };
+
+  const handleDeleteCamp = (camp: Campaign) => {
+    setCampaignToDelete(camp);
+  };
+
+  const confirmDeleteCamp = async () => {
+    if (!campaignToDelete) return;
+    const name = campaignToDelete.name;
+    const deletedId = campaignToDelete.id;
+    await deleteCampaign(deletedId);
+    if (selectedCampaignId === deletedId) {
+      const remaining = campaigns.filter((c) => c.id !== deletedId);
+      if (remaining.length > 0) {
+        setSelectedCampaignId(remaining[0].id);
+      }
+    }
+    setCampaignToDelete(null);
+    showNotification(`Đã xóa đợt đánh giá "${name}" và toàn bộ cấu hình liên quan thành công!`);
+  };
+
+  const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!campForm.code.trim() || !campForm.name.trim()) {
       showNotification('Vui lòng nhập Mã và Tên đợt đánh giá!', 'error');
       return;
     }
 
-    const newCamp: Campaign = {
-      id: `camp-${Date.now()}`,
-      code: campForm.code.trim().toUpperCase(),
-      name: campForm.name.trim(),
-      periodType: campForm.periodType,
-      periodValue: campForm.periodValue.trim(),
-      startDate: new Date(campForm.startDate).toISOString(),
-      endDate: new Date(campForm.endDate).toISOString(),
-      isLocked: false,
-      description: campForm.description,
-      createdAt: new Date().toISOString(),
-    };
+    if (editingCampaign) {
+      // Sửa đợt đánh giá hiện có
+      const updatedCamp: Campaign = {
+        ...editingCampaign,
+        code: campForm.code.trim().toUpperCase(),
+        name: campForm.name.trim(),
+        periodType: campForm.periodType,
+        periodValue: campForm.periodValue.trim(),
+        startDate: new Date(campForm.startDate).toISOString(),
+        endDate: new Date(campForm.endDate).toISOString(),
+        description: campForm.description,
+      };
 
-    await saveCampaign(newCamp);
+      await saveCampaign(updatedCamp);
+      setIsCreateCampModalOpen(false);
+      showNotification(`Đã cập nhật thông tin đợt đánh giá "${updatedCamp.name}" thành công!`);
+    } else {
+      // Tạo mới đợt đánh giá
+      const newCamp: Campaign = {
+        id: `camp-${Date.now()}`,
+        code: campForm.code.trim().toUpperCase(),
+        name: campForm.name.trim(),
+        periodType: campForm.periodType,
+        periodValue: campForm.periodValue.trim(),
+        startDate: new Date(campForm.startDate).toISOString(),
+        endDate: new Date(campForm.endDate).toISOString(),
+        isLocked: false,
+        description: campForm.description,
+        createdAt: new Date().toISOString(),
+      };
 
-    // Mặc định chọn tất cả đơn vị cấp 1 & cấp 2, cùng tất cả tiêu chí cho đợt mới
-    const defaultUnits = units.filter((u) => u.level <= 2).map((u) => u.id);
-    const defaultCriteria = criteria.map((c) => c.id);
+      await saveCampaign(newCamp);
 
-    await saveCampaignConfig(
-      newCamp.id,
-      defaultUnits,
-      defaultUnits,
-      [],
-      defaultCriteria
-    );
+      // Mặc định chọn tất cả đơn vị cấp 1 & cấp 2, cùng tất cả tiêu chí cho đợt mới
+      const defaultUnits = units.filter((u) => u.level <= 2).map((u) => u.id);
+      const defaultCriteria = criteria.map((c) => c.id);
 
-    setSelectedCampaignId(newCamp.id);
-    setIsCreateCampModalOpen(false);
-    showNotification(`Đã tạo đợt đánh giá "${newCamp.name}" thành công!`);
-    // Tự động chuyển người dùng sang Bước 2 để chọn đơn vị
-    setActiveTab('step2_units');
+      await saveCampaignConfig(
+        newCamp.id,
+        defaultUnits,
+        defaultUnits,
+        [],
+        defaultCriteria
+      );
+
+      setSelectedCampaignId(newCamp.id);
+      setIsCreateCampModalOpen(false);
+      showNotification(`Đã tạo đợt đánh giá "${newCamp.name}" thành công!`);
+      // Tự động chuyển người dùng sang Bước 2 để chọn đơn vị
+      setActiveTab('step2_units');
+    }
   };
 
   // Thống kê tiến độ thời gian thực
@@ -695,7 +765,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
             </div>
             <button
               type="button"
-              onClick={() => setIsCreateCampModalOpen(true)}
+              onClick={openCreateCampModal}
               className="px-4 py-2 bg-[#005baa] hover:bg-[#004b8d] text-white font-semibold rounded-lg shrink-0 shadow-xs flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
@@ -768,7 +838,45 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => toggleCampaignLock(camp.id)}
+                        className={`p-2 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-colors ${
+                          camp.isLocked
+                            ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                        title={camp.isLocked ? 'Bấm để Mở khóa đợt này' : 'Bấm để Khóa đợt này'}
+                      >
+                        {camp.isLocked ? (
+                          <Lock className="w-3.5 h-3.5 text-amber-600" />
+                        ) : (
+                          <Unlock className="w-3.5 h-3.5 text-slate-500" />
+                        )}
+                        <span className="hidden sm:inline">{camp.isLocked ? 'Mở Khóa' : 'Khóa'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openEditCampModal(camp)}
+                        className="p-2 border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-600 hover:text-[#005baa] rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
+                        title="Chỉnh sửa thông tin đợt đánh giá"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Sửa</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCamp(camp)}
+                        className="p-2 border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
+                        title="Xóa đợt đánh giá này"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Xóa</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -1553,7 +1661,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 1: TẠO MỚI ĐỢT ĐÁNH GIÁ (BƯỚC 1)                                   */}
+      {/* MODAL 1: TẠO MỚI / CHỈNH SỬA ĐỢT ĐÁNH GIÁ (BƯỚC 1)                        */}
       {/* ========================================================================= */}
       {isCreateCampModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
@@ -1561,7 +1669,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
             <div className="bg-[#005baa] px-5 py-4 text-white flex items-center justify-between">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <CalendarCheck className="w-4 h-4" />
-                Khởi Tạo Đợt Đánh Giá Mới (Bước 1)
+                {editingCampaign
+                  ? `Chỉnh Sửa Đợt Đánh Giá: ${editingCampaign.code}`
+                  : 'Khởi Tạo Đợt Đánh Giá Mới (Bước 1)'}
               </h3>
               <button
                 type="button"
@@ -1572,7 +1682,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
               </button>
             </div>
 
-            <form onSubmit={handleCreateCampaign} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSaveCampaign} className="p-5 space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Mã Đợt Đánh Giá *
@@ -1702,7 +1812,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                   type="submit"
                   className="px-4 py-2 bg-[#005baa] hover:bg-[#004b8d] text-white rounded-lg font-semibold shadow-xs"
                 >
-                  Tạo Đợt & Tiếp Tục
+                  {editingCampaign ? 'Lưu Thông Tin (D1)' : 'Tạo Đợt & Tiếp Tục'}
                 </button>
               </div>
             </form>
@@ -1904,6 +2014,50 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
               <button
                 type="button"
                 onClick={confirmDeleteCriterion}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold shadow-xs"
+              >
+                Xác Nhận Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: XÁC NHẬN XÓA ĐỢT ĐÁNH GIÁ (BƯỚC 1)                               */}
+      {/* ========================================================================= */}
+      {campaignToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden animate-in zoom-in-95 p-5 text-xs space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">Xóa Đợt Đánh Giá Này?</h4>
+                <p className="text-slate-500 text-[11px]">Hành động này không thể hoàn tác</p>
+              </div>
+            </div>
+
+            <p className="text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa đợt đánh giá{' '}
+              <strong className="text-slate-900">
+                "{campaignToDelete.code} - {campaignToDelete.name}"
+              </strong>{' '}
+              khỏi CSDL D1? Tất cả cấu hình đơn vị, câu hỏi và kết quả đánh giá thuộc đợt này sẽ bị xóa bỏ.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCampaignToDelete(null)}
+                className="px-3 py-1.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteCamp}
                 className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold shadow-xs"
               >
                 Xác Nhận Xóa

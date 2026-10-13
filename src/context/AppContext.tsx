@@ -51,6 +51,7 @@ interface AppContextType {
   resetPassword: (userId: string) => Promise<boolean>;
   // Campaign operations
   saveCampaign: (campaign: Campaign) => Promise<boolean>;
+  deleteCampaign: (campaignId: string) => Promise<boolean>;
   toggleCampaignLock: (campaignId: string) => Promise<boolean>;
   saveCampaignConfig: (campaignId: string, targetUnitIds: string[], evaluatingUnitIds: string[], evaluators: CampaignEvaluator[], criterionIds?: string[]) => Promise<boolean>;
   toggleTargetUnit: (campaignId: string, unitId: string) => Promise<boolean>;
@@ -298,8 +299,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveCampaign = async (campaign: Campaign): Promise<boolean> => {
+    setCampaigns((prev) => {
+      const idx = prev.findIndex((c) => c.id === campaign.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = campaign;
+        return next;
+      }
+      return [campaign, ...prev];
+    });
     await d1Client.saveCampaign(campaign);
-    await refreshData();
+    return true;
+  };
+
+  const deleteCampaign = async (campaignId: string): Promise<boolean> => {
+    setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
+    setTargetUnits((prev) => prev.filter((t) => t.campaignId !== campaignId));
+    setEvaluatingUnits((prev) => prev.filter((e) => e.campaignId !== campaignId));
+    setCampaignCriteria((prev) => prev.filter((cc) => cc.campaignId !== campaignId));
+    setEvaluators((prev) => prev.filter((ev) => ev.campaignId !== campaignId));
+    setEvaluations((prev) => prev.filter((ev) => ev.campaignId !== campaignId));
+    await d1Client.deleteCampaign(campaignId);
     return true;
   };
 
@@ -534,8 +554,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveEvaluation = async (record: EvaluationRecord): Promise<boolean> => {
+    setEvaluations((prev) => {
+      const idx = prev.findIndex(
+        (e) =>
+          e.id === record.id ||
+          (e.campaignId === record.campaignId &&
+            e.evaluatorId === record.evaluatorId &&
+            e.targetUnitId === record.targetUnitId)
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = record;
+        return next;
+      }
+      return [...prev, record];
+    });
     await d1Client.saveEvaluation(record);
-    await refreshData();
     return true;
   };
 
@@ -586,6 +620,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteUser,
         resetPassword,
         saveCampaign,
+        deleteCampaign,
         toggleCampaignLock,
         saveCampaignConfig,
         toggleTargetUnit,

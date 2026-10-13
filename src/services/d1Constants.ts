@@ -543,6 +543,17 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
+      if (pathname.startsWith('/api/campaigns/') && request.method === 'DELETE') {
+        const id = pathname.split('/').pop();
+        await db.prepare("DELETE FROM campaigns WHERE id = ?").bind(id).run();
+        await db.prepare("DELETE FROM campaign_target_units WHERE campaign_id = ?").bind(id).run();
+        await db.prepare("DELETE FROM campaign_evaluating_units WHERE campaign_id = ?").bind(id).run();
+        await db.prepare("DELETE FROM campaign_criteria WHERE campaign_id = ?").bind(id).run();
+        await db.prepare("DELETE FROM campaign_evaluators WHERE campaign_id = ?").bind(id).run();
+        await db.prepare("DELETE FROM evaluations WHERE campaign_id = ?").bind(id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       // Lưu kết quả đánh giá (Evaluations)
       if (pathname === '/api/evaluations' && request.method === 'POST') {
         const ev = await request.json();

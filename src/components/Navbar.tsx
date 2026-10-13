@@ -133,7 +133,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                           {currentUser.hrmCode}
                         </span>
                         <span>·</span>
-                        <span>{currentUser.role === 'ADMIN' ? 'Quản trị viên' : 'Người đánh giá'}</span>
+                        <span>
+                          {currentUser.role === 'ADMIN'
+                            ? 'Quản trị viên'
+                            : currentUser.role === 'REPORT_VIEWER'
+                            ? 'Người xem báo cáo'
+                            : 'Người đánh giá'}
+                        </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 truncate">
                         <Building2 className="w-3.5 h-3.5 shrink-0 text-slate-400" />
