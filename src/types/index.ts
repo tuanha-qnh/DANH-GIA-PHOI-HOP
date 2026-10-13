@@ -67,6 +67,11 @@ export interface CampaignEvaluatingUnit {
   unitId: string;
 }
 
+export interface CampaignCriterion {
+  campaignId: string;
+  criterionId: string;
+}
+
 export interface CampaignEvaluator {
   campaignId: string;
   userId: string;

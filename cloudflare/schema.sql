@@ -71,6 +71,14 @@ CREATE TABLE IF NOT EXISTS campaign_evaluating_units (
   FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS campaign_criteria (
+  campaign_id TEXT NOT NULL,
+  criterion_id TEXT NOT NULL,
+  PRIMARY KEY (campaign_id, criterion_id),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (criterion_id) REFERENCES criteria(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS campaign_evaluators (
   campaign_id TEXT NOT NULL,
   user_id TEXT NOT NULL,

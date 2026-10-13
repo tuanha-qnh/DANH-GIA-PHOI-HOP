@@ -325,3 +325,13 @@ export const INITIAL_EVALUATORS = [
   { campaignId: 'camp-q1-2026', userId: 'user-ttdhtt-1', unitId: 'u-ttdhtt', assignedAt: '2026-03-01T09:00:00Z' },
   { campaignId: 'camp-q1-2026', userId: 'user-pns-1', unitId: 'u-pns-th', assignedAt: '2026-03-01T09:00:00Z' },
 ];
+
+// Selected criteria for camp-q1-2026
+export const INITIAL_CAMPAIGN_CRITERIA = [
+  { campaignId: 'camp-q1-2026', criterionId: 'tc-1' },
+  { campaignId: 'camp-q1-2026', criterionId: 'tc-2' },
+  { campaignId: 'camp-q1-2026', criterionId: 'tc-3' },
+  { campaignId: 'camp-q1-2026', criterionId: 'tc-4' },
+  { campaignId: 'camp-q1-2026', criterionId: 'tc-5' },
+];
+

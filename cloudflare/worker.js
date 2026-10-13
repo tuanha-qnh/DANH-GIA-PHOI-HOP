@@ -119,6 +119,7 @@ export default {
           `CREATE TABLE IF NOT EXISTS criteria (id TEXT PRIMARY KEY, code TEXT UNIQUE, name TEXT, description TEXT, weight REAL, min_score INTEGER, max_score INTEGER, order_index INTEGER)`,
           `CREATE TABLE IF NOT EXISTS campaign_target_units (campaign_id TEXT, unit_id TEXT, PRIMARY KEY (campaign_id, unit_id))`,
           `CREATE TABLE IF NOT EXISTS campaign_evaluating_units (campaign_id TEXT, unit_id TEXT, PRIMARY KEY (campaign_id, unit_id))`,
+          `CREATE TABLE IF NOT EXISTS campaign_criteria (campaign_id TEXT, criterion_id TEXT, PRIMARY KEY (campaign_id, criterion_id))`,
           `CREATE TABLE IF NOT EXISTS campaign_evaluators (campaign_id TEXT, user_id TEXT, unit_id TEXT, assigned_at TEXT, PRIMARY KEY (campaign_id, user_id))`,
           `CREATE TABLE IF NOT EXISTS evaluations (id TEXT PRIMARY KEY, campaign_id TEXT, evaluator_id TEXT, evaluator_unit_id TEXT, target_unit_id TEXT, scores_json TEXT, average_score REAL, status TEXT, submitted_at TEXT, updated_at TEXT)`,
           `CREATE TABLE IF NOT EXISTS app_config (config_key TEXT PRIMARY KEY, config_value TEXT, updated_at TEXT)`
@@ -145,6 +146,7 @@ export default {
         const criteria = (await db.prepare("SELECT id, code, name, description, weight, min_score as minScore, max_score as maxScore, order_index as orderIndex FROM criteria ORDER BY order_index ASC").all()).results || [];
         const targetUnits = (await db.prepare("SELECT campaign_id as campaignId, unit_id as unitId FROM campaign_target_units").all()).results || [];
         const evaluatingUnits = (await db.prepare("SELECT campaign_id as campaignId, unit_id as unitId FROM campaign_evaluating_units").all()).results || [];
+        const campaignCriteria = (await db.prepare("SELECT campaign_id as campaignId, criterion_id as criterionId FROM campaign_criteria").all()).results || [];
         const evaluators = (await db.prepare("SELECT campaign_id as campaignId, user_id as userId, unit_id as unitId, assigned_at as assignedAt FROM campaign_evaluators").all()).results || [];
         const rawEvals = (await db.prepare("SELECT * FROM evaluations").all()).results || [];
 
@@ -170,6 +172,7 @@ export default {
             criteria,
             targetUnits,
             evaluatingUnits,
+            campaignCriteria,
             evaluators,
             evaluations
           }
@@ -311,6 +314,57 @@ export default {
           await db.prepare(`INSERT INTO campaign_evaluators (campaign_id, user_id, unit_id, assigned_at) VALUES (?, ?, ?, ?)`)
             .bind(campaignId, ev.userId, ev.unitId, ev.assignedAt || new Date().toISOString()).run();
         }
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname === '/api/campaign-config' && request.method === 'POST') {
+        const { campaignId, targetUnitIds, evaluatingUnitIds, criterionIds, evaluators } = await request.json();
+
+        if (Array.isArray(targetUnitIds)) {
+          await db.prepare("DELETE FROM campaign_target_units WHERE campaign_id = ?").bind(campaignId).run();
+          for (const uid of targetUnitIds) {
+            await db.prepare("INSERT INTO campaign_target_units (campaign_id, unit_id) VALUES (?, ?)").bind(campaignId, uid).run();
+          }
+        }
+
+        if (Array.isArray(evaluatingUnitIds)) {
+          await db.prepare("DELETE FROM campaign_evaluating_units WHERE campaign_id = ?").bind(campaignId).run();
+          for (const uid of evaluatingUnitIds) {
+            await db.prepare("INSERT INTO campaign_evaluating_units (campaign_id, unit_id) VALUES (?, ?)").bind(campaignId, uid).run();
+          }
+        }
+
+        if (Array.isArray(criterionIds)) {
+          await db.prepare("DELETE FROM campaign_criteria WHERE campaign_id = ?").bind(campaignId).run();
+          for (const cid of criterionIds) {
+            await db.prepare("INSERT INTO campaign_criteria (campaign_id, criterion_id) VALUES (?, ?)").bind(campaignId, cid).run();
+          }
+        }
+
+        if (Array.isArray(evaluators)) {
+          await db.prepare("DELETE FROM campaign_evaluators WHERE campaign_id = ?").bind(campaignId).run();
+          for (const ev of evaluators) {
+            await db.prepare("INSERT INTO campaign_evaluators (campaign_id, user_id, unit_id, assigned_at) VALUES (?, ?, ?, ?)").bind(campaignId, ev.userId, ev.unitId, ev.assignedAt || new Date().toISOString()).run();
+          }
+        }
+
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname === '/api/criteria' && request.method === 'POST') {
+        const c = await request.json();
+        await db.prepare(`
+          INSERT INTO criteria (id, code, name, description, weight, min_score, max_score, order_index)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name, description=excluded.description, weight=excluded.weight, min_score=excluded.min_score, max_score=excluded.max_score, order_index=excluded.order_index
+        `).bind(c.id, c.code, c.name, c.description || '', c.weight || 1, c.minScore || 1, c.maxScore || 10, c.orderIndex || 1).run();
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (pathname.startsWith('/api/criteria/') && request.method === 'DELETE') {
+        const id = pathname.split('/').pop();
+        await db.prepare("DELETE FROM criteria WHERE id = ?").bind(id).run();
+        await db.prepare("DELETE FROM campaign_criteria WHERE criterion_id = ?").bind(id).run();
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 

@@ -5,6 +5,7 @@
 
 import {
   Campaign,
+  CampaignCriterion,
   CampaignEvaluatingUnit,
   CampaignEvaluator,
   CampaignTargetUnit,
@@ -15,6 +16,7 @@ import {
 } from '../types';
 import {
   INITIAL_CAMPAIGNS,
+  INITIAL_CAMPAIGN_CRITERIA,
   INITIAL_CRITERIA,
   INITIAL_EVALUATING_UNITS,
   INITIAL_EVALUATORS,
@@ -31,6 +33,7 @@ export interface FullSyncData {
   criteria: Criterion[];
   targetUnits: CampaignTargetUnit[];
   evaluatingUnits: CampaignEvaluatingUnit[];
+  campaignCriteria: CampaignCriterion[];
   evaluators: CampaignEvaluator[];
   evaluations: EvaluationRecord[];
 }
@@ -46,6 +49,7 @@ let inMemoryStore: FullSyncData = {
   criteria: [...INITIAL_CRITERIA],
   targetUnits: [...INITIAL_TARGET_UNITS],
   evaluatingUnits: [...INITIAL_EVALUATING_UNITS],
+  campaignCriteria: [...INITIAL_CAMPAIGN_CRITERIA],
   evaluators: [...INITIAL_EVALUATORS],
   evaluations: [
     {
@@ -352,6 +356,7 @@ export const d1Client = {
             criteria: json.data.criteria || [],
             targetUnits: json.data.targetUnits || [],
             evaluatingUnits: json.data.evaluatingUnits || [],
+            campaignCriteria: json.data.campaignCriteria || inMemoryStore.campaignCriteria || [],
             evaluators: json.data.evaluators || [],
             evaluations: json.data.evaluations || [],
           };
@@ -544,7 +549,8 @@ export const d1Client = {
     campaignId: string,
     targetUnitIds: string[],
     evaluatingUnitIds: string[],
-    evaluators: CampaignEvaluator[]
+    evaluators: CampaignEvaluator[],
+    criterionIds?: string[]
   ): Promise<boolean> {
     inMemoryStore.targetUnits = [
       ...inMemoryStore.targetUnits.filter((t) => t.campaignId !== campaignId),
@@ -561,16 +567,79 @@ export const d1Client = {
       ...evaluators,
     ];
 
+    if (Array.isArray(criterionIds)) {
+      inMemoryStore.campaignCriteria = [
+        ...inMemoryStore.campaignCriteria.filter((c) => c.campaignId !== campaignId),
+        ...criterionIds.map((cid) => ({ campaignId, criterionId: cid })),
+      ];
+    }
+
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
       try {
-        await fetch(this.buildUrl('/api/evaluators/save-batch'), {
+        const res = await fetch(this.buildUrl('/api/campaign-config'), {
           method: 'POST',
           headers: this.getAuthHeaders(),
-          body: JSON.stringify({ campaignId, evaluators }),
+          body: JSON.stringify({
+            campaignId,
+            targetUnitIds,
+            evaluatingUnitIds,
+            criterionIds,
+            evaluators,
+          }),
+        });
+
+        // Fallback for older worker versions without /api/campaign-config
+        if (!res.ok) {
+          await fetch(this.buildUrl('/api/evaluators/save-batch'), {
+            method: 'POST',
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify({ campaignId, evaluators }),
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.error('Lỗi lưu cấu hình đợt đánh giá lên D1:', e);
+      }
+    }
+    return true;
+  },
+
+  async saveCriterion(criterion: Criterion): Promise<boolean> {
+    const idx = inMemoryStore.criteria.findIndex((c) => c.id === criterion.id);
+    if (idx >= 0) {
+      inMemoryStore.criteria[idx] = criterion;
+    } else {
+      inMemoryStore.criteria.push(criterion);
+    }
+
+    const workerUrl = this.getStoredWorkerUrl();
+    if (workerUrl) {
+      try {
+        await fetch(this.buildUrl('/api/criteria'), {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(criterion),
         });
       } catch (e) {
-        console.error('Lỗi lưu evaluators lên D1:', e);
+        console.error('Lỗi lưu tiêu chí lên D1:', e);
+      }
+    }
+    return true;
+  },
+
+  async deleteCriterion(id: string): Promise<boolean> {
+    inMemoryStore.criteria = inMemoryStore.criteria.filter((c) => c.id !== id);
+    inMemoryStore.campaignCriteria = inMemoryStore.campaignCriteria.filter((cc) => cc.criterionId !== id);
+
+    const workerUrl = this.getStoredWorkerUrl();
+    if (workerUrl) {
+      try {
+        await fetch(this.buildUrl(`/api/criteria/${id}`), {
+          method: 'DELETE',
+          headers: this.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Lỗi xóa tiêu chí trên D1:', e);
       }
     }
     return true;

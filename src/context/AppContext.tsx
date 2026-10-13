@@ -6,6 +6,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   Campaign,
+  CampaignCriterion,
   CampaignEvaluatingUnit,
   CampaignEvaluator,
   CampaignTargetUnit,
@@ -26,6 +27,7 @@ interface AppContextType {
   criteria: Criterion[];
   targetUnits: CampaignTargetUnit[];
   evaluatingUnits: CampaignEvaluatingUnit[];
+  campaignCriteria: CampaignCriterion[];
   evaluators: CampaignEvaluator[];
   evaluations: EvaluationRecord[];
   isLoading: boolean;
@@ -50,7 +52,10 @@ interface AppContextType {
   // Campaign operations
   saveCampaign: (campaign: Campaign) => Promise<boolean>;
   toggleCampaignLock: (campaignId: string) => Promise<boolean>;
-  saveCampaignConfig: (campaignId: string, targetUnitIds: string[], evaluatingUnitIds: string[], evaluators: CampaignEvaluator[]) => Promise<boolean>;
+  saveCampaignConfig: (campaignId: string, targetUnitIds: string[], evaluatingUnitIds: string[], evaluators: CampaignEvaluator[], criterionIds?: string[]) => Promise<boolean>;
+  // Criterion operations
+  saveCriterion: (criterion: Criterion) => Promise<boolean>;
+  deleteCriterion: (id: string) => Promise<boolean>;
   // Evaluation operations
   saveEvaluation: (record: EvaluationRecord) => Promise<boolean>;
   // D1 Config operations
@@ -69,6 +74,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [targetUnits, setTargetUnits] = useState<CampaignTargetUnit[]>([]);
   const [evaluatingUnits, setEvaluatingUnits] = useState<CampaignEvaluatingUnit[]>([]);
+  const [campaignCriteria, setCampaignCriteria] = useState<CampaignCriterion[]>([]);
   const [evaluators, setEvaluators] = useState<CampaignEvaluator[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,6 +96,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCriteria(data.criteria);
       setTargetUnits(data.targetUnits);
       setEvaluatingUnits(data.evaluatingUnits);
+      setCampaignCriteria(data.campaignCriteria || []);
       setEvaluators(data.evaluators);
       setEvaluations(data.evaluations);
 
@@ -303,10 +310,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     campaignId: string,
     targetUnitIds: string[],
     evaluatingUnitIds: string[],
-    evaluatorsToSave: CampaignEvaluator[]
+    evaluatorsToSave: CampaignEvaluator[],
+    criterionIds?: string[]
   ): Promise<boolean> => {
-    await d1Client.saveCampaignConfig(campaignId, targetUnitIds, evaluatingUnitIds, evaluatorsToSave);
-    await refreshData();
+    // 1. Cập nhật state nội bộ ngay lập tức (optimistic UI) để người dùng bấm tích chọn là thấy ngay lập tức
+    setTargetUnits((prev) => [
+      ...prev.filter((t) => t.campaignId !== campaignId),
+      ...targetUnitIds.map((uid) => ({ campaignId, unitId: uid })),
+    ]);
+    setEvaluatingUnits((prev) => [
+      ...prev.filter((e) => e.campaignId !== campaignId),
+      ...evaluatingUnitIds.map((uid) => ({ campaignId, unitId: uid })),
+    ]);
+    setEvaluators((prev) => [
+      ...prev.filter((ev) => ev.campaignId !== campaignId),
+      ...evaluatorsToSave,
+    ]);
+    if (Array.isArray(criterionIds)) {
+      setCampaignCriteria((prev) => [
+        ...prev.filter((c) => c.campaignId !== campaignId),
+        ...criterionIds.map((cid) => ({ campaignId, criterionId: cid })),
+      ]);
+    }
+
+    // 2. Đồng bộ ngầm lên D1 Client và Cloudflare Worker
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      targetUnitIds,
+      evaluatingUnitIds,
+      evaluatorsToSave,
+      criterionIds
+    );
+    return true;
+  };
+
+  const saveCriterion = async (criterion: Criterion): Promise<boolean> => {
+    setCriteria((prev) => {
+      const idx = prev.findIndex((c) => c.id === criterion.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = criterion;
+        return next;
+      }
+      return [...prev, criterion];
+    });
+    await d1Client.saveCriterion(criterion);
+    return true;
+  };
+
+  const deleteCriterion = async (id: string): Promise<boolean> => {
+    setCriteria((prev) => prev.filter((c) => c.id !== id));
+    setCampaignCriteria((prev) => prev.filter((cc) => cc.criterionId !== id));
+    await d1Client.deleteCriterion(id);
     return true;
   };
 
@@ -347,6 +402,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         criteria,
         targetUnits,
         evaluatingUnits,
+        campaignCriteria,
         evaluators,
         evaluations,
         isLoading,
@@ -364,6 +420,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveCampaign,
         toggleCampaignLock,
         saveCampaignConfig,
+        saveCriterion,
+        deleteCriterion,
         saveEvaluation,
         setD1WorkerUrl,
         testD1Connection,

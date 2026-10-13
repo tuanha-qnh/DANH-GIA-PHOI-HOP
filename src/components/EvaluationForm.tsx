@@ -28,6 +28,7 @@ export const EvaluationForm: React.FC = () => {
     campaigns,
     units,
     criteria,
+    campaignCriteria,
     targetUnits,
     evaluatingUnits,
     evaluators,
@@ -40,6 +41,15 @@ export const EvaluationForm: React.FC = () => {
   );
 
   const currentCampaign = campaigns.find((c) => c.id === selectedCampaignId) || campaigns[0];
+
+  // Selected criteria for this campaign (nếu có cấu hình thì lọc theo đợt, nếu chưa thì hiển thị tất cả)
+  const selectedCritIds = campaignCriteria
+    .filter((cc) => cc.campaignId === currentCampaign?.id)
+    .map((cc) => cc.criterionId);
+
+  const activeCriteria = selectedCritIds.length > 0
+    ? criteria.filter((c) => selectedCritIds.includes(c.id))
+    : criteria;
 
   // Target units assigned for this campaign
   const campaignTargetUnitIds = targetUnits
@@ -82,13 +92,13 @@ export const EvaluationForm: React.FC = () => {
     } else {
       // Default empty or neutral 8 scores
       const initial: Record<string, CriterionScore> = {};
-      criteria.forEach((c) => {
+      activeCriteria.forEach((c) => {
         initial[c.id] = { score: 8, lowScoreReason: '' };
       });
       setCurrentScores(initial);
     }
     setValidationErrors([]);
-  }, [selectedCampaignId, activeTargetUnitId, currentUser, currentCampaign]);
+  }, [selectedCampaignId, activeTargetUnitId, currentUser, currentCampaign, activeCriteria]);
 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -119,18 +129,22 @@ export const EvaluationForm: React.FC = () => {
     }));
   };
 
-  // Compute average score
-  const scoreValues = Object.values(currentScores).map((s) => s.score);
+  // Compute average score for the active criteria in this campaign
+  const activeCriterionIds = activeCriteria.map((c) => c.id);
+  const relevantScores = Object.entries(currentScores)
+    .filter(([cid]) => activeCriterionIds.includes(cid))
+    .map(([, s]) => s.score);
+
   const averageScore =
-    scoreValues.length > 0
-      ? Number((scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length).toFixed(2))
+    relevantScores.length > 0
+      ? Number((relevantScores.reduce((a, b) => a + b, 0) / relevantScores.length).toFixed(2))
       : 0;
 
   // Validation
   const validateForm = (): boolean => {
     const errors: string[] = [];
 
-    criteria.forEach((c) => {
+    activeCriteria.forEach((c) => {
       const item = currentScores[c.id];
       if (!item || !item.score) {
         errors.push(`Chưa chấm điểm cho tiêu chí "${c.code} - ${c.name}"`);
@@ -373,7 +387,7 @@ export const EvaluationForm: React.FC = () => {
 
           {/* List of Criteria */}
           <div className="p-6 space-y-6">
-            {criteria.map((c, index) => {
+            {activeCriteria.map((c, index) => {
               const item = currentScores[c.id] || { score: 8, lowScoreReason: '' };
               const currentScore = item.score;
               const reason = item.lowScoreReason || '';
