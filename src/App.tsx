@@ -66,7 +66,17 @@ const MainLayout: React.FC = () => {
 
           {currentTab === 'users' && isAdmin && <UserManagement />}
 
-          {currentTab === 'campaigns' && isAdmin && <CampaignManagement />}
+          {currentTab === 'campaigns' && isAdmin && (
+            <CampaignManagement initialStep="step1_campaigns" />
+          )}
+
+          {currentTab === 'campaign-units' && isAdmin && (
+            <CampaignManagement initialStep="step2_units" />
+          )}
+
+          {currentTab === 'campaign-criteria' && isAdmin && (
+            <CampaignManagement initialStep="step3_criteria" />
+          )}
 
           {currentTab === 'evaluate' && <EvaluationForm />}
 

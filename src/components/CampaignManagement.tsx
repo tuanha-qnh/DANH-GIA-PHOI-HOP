@@ -33,7 +33,11 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 
-export const CampaignManagement: React.FC = () => {
+interface CampaignManagementProps {
+  initialStep?: 'step1_campaigns' | 'step2_units' | 'step3_criteria' | 'step4_assignment';
+}
+
+export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialStep }) => {
   const {
     campaigns,
     units,
@@ -47,6 +51,12 @@ export const CampaignManagement: React.FC = () => {
     saveCampaign,
     toggleCampaignLock,
     saveCampaignConfig,
+    toggleTargetUnit,
+    toggleEvaluatingUnit,
+    toggleCampaignCriterion,
+    selectAllTargetUnits,
+    selectAllEvaluatingUnits,
+    selectAllCampaignCriteria,
     saveCriterion,
     deleteCriterion,
   } = useApp();
@@ -58,7 +68,13 @@ export const CampaignManagement: React.FC = () => {
   // Bước 4: Gán cán bộ đánh giá & Bảng điều khiển tiến độ
   const [activeTab, setActiveTab] = useState<
     'step1_campaigns' | 'step2_units' | 'step3_criteria' | 'step4_assignment'
-  >('step1_campaigns');
+  >(initialStep || 'step1_campaigns');
+
+  React.useEffect(() => {
+    if (initialStep) {
+      setActiveTab(initialStep);
+    }
+  }, [initialStep]);
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(
     campaigns[0]?.id || ''
@@ -171,30 +187,13 @@ export const CampaignManagement: React.FC = () => {
   // =========================================================================
   const handleToggleTargetUnit = async (unitId: string) => {
     if (!currentCampaign) return;
-    const newTargets = campaignTargetUnitIds.includes(unitId)
-      ? campaignTargetUnitIds.filter((id) => id !== unitId)
-      : [...campaignTargetUnitIds, unitId];
-
-    await saveCampaignConfig(
-      currentCampaign.id,
-      newTargets,
-      campaignEvaluatingUnitIds,
-      campaignEvaluatorList,
-      activeSelectedCriterionIds
-    );
-    showNotification('Đã cập nhật đơn vị bị đánh giá trên CSDL D1!');
+    await toggleTargetUnit(currentCampaign.id, unitId);
+    showNotification('Đã cập nhật đơn vị bị đánh giá!');
   };
 
   const handleSelectAllTargetUnits = async (selectAll: boolean) => {
     if (!currentCampaign) return;
-    const newTargets = selectAll ? units.map((u) => u.id) : [];
-    await saveCampaignConfig(
-      currentCampaign.id,
-      newTargets,
-      campaignEvaluatingUnitIds,
-      campaignEvaluatorList,
-      activeSelectedCriterionIds
-    );
+    await selectAllTargetUnits(currentCampaign.id, selectAll);
     showNotification(
       selectAll
         ? `Đã chọn tất cả ${units.length} đơn vị bị đánh giá!`
@@ -204,30 +203,13 @@ export const CampaignManagement: React.FC = () => {
 
   const handleToggleEvaluatingUnit = async (unitId: string) => {
     if (!currentCampaign) return;
-    const newEvaluating = campaignEvaluatingUnitIds.includes(unitId)
-      ? campaignEvaluatingUnitIds.filter((id) => id !== unitId)
-      : [...campaignEvaluatingUnitIds, unitId];
-
-    await saveCampaignConfig(
-      currentCampaign.id,
-      campaignTargetUnitIds,
-      newEvaluating,
-      campaignEvaluatorList,
-      activeSelectedCriterionIds
-    );
-    showNotification('Đã cập nhật đơn vị tham gia đánh giá trên CSDL D1!');
+    await toggleEvaluatingUnit(currentCampaign.id, unitId);
+    showNotification('Đã cập nhật đơn vị tham gia đánh giá!');
   };
 
   const handleSelectAllEvaluatingUnits = async (selectAll: boolean) => {
     if (!currentCampaign) return;
-    const newEvaluating = selectAll ? units.map((u) => u.id) : [];
-    await saveCampaignConfig(
-      currentCampaign.id,
-      campaignTargetUnitIds,
-      newEvaluating,
-      campaignEvaluatorList,
-      activeSelectedCriterionIds
-    );
+    await selectAllEvaluatingUnits(currentCampaign.id, selectAll);
     showNotification(
       selectAll
         ? `Đã chọn tất cả ${units.length} đơn vị tham gia đánh giá!`
@@ -240,30 +222,13 @@ export const CampaignManagement: React.FC = () => {
   // =========================================================================
   const handleToggleCriterionForCampaign = async (criterionId: string) => {
     if (!currentCampaign) return;
-    const newCriteria = activeSelectedCriterionIds.includes(criterionId)
-      ? activeSelectedCriterionIds.filter((id) => id !== criterionId)
-      : [...activeSelectedCriterionIds, criterionId];
-
-    await saveCampaignConfig(
-      currentCampaign.id,
-      campaignTargetUnitIds,
-      campaignEvaluatingUnitIds,
-      campaignEvaluatorList,
-      newCriteria
-    );
-    showNotification('Đã cập nhật danh sách câu hỏi áp dụng cho đợt này!');
+    await toggleCampaignCriterion(currentCampaign.id, criterionId);
+    showNotification('Đã cập nhật câu hỏi áp dụng cho đợt này!');
   };
 
   const handleSelectAllCriteriaForCampaign = async (selectAll: boolean) => {
     if (!currentCampaign) return;
-    const newCriteria = selectAll ? criteria.map((c) => c.id) : [];
-    await saveCampaignConfig(
-      currentCampaign.id,
-      campaignTargetUnitIds,
-      campaignEvaluatingUnitIds,
-      campaignEvaluatorList,
-      newCriteria
-    );
+    await selectAllCampaignCriteria(currentCampaign.id, selectAll);
     showNotification(
       selectAll
         ? `Đã chọn tất cả ${criteria.length} câu hỏi cho đợt này!`
@@ -925,7 +890,7 @@ export const CampaignManagement: React.FC = () => {
                         onClick={() => handleToggleTargetUnit(u.id)}
                         className={`flex items-center justify-between p-3 rounded-lg border text-xs cursor-pointer select-none transition-all ${
                           isChecked
-                            ? 'border-rose-400 bg-rose-50/50 text-slate-900 shadow-2xs'
+                            ? 'border-rose-400 bg-rose-50/70 text-slate-900 shadow-2xs font-semibold ring-1 ring-rose-300'
                             : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300'
                         }`}
                       >
@@ -933,8 +898,11 @@ export const CampaignManagement: React.FC = () => {
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => {}} // Handled by parent div onClick
-                            className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer pointer-events-none"
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleTargetUnit(u.id);
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                           />
                           <div>
                             <p className="font-bold text-slate-800 leading-tight">
@@ -1015,7 +983,7 @@ export const CampaignManagement: React.FC = () => {
                         onClick={() => handleToggleEvaluatingUnit(u.id)}
                         className={`flex items-center justify-between p-3 rounded-lg border text-xs cursor-pointer select-none transition-all ${
                           isChecked
-                            ? 'border-blue-400 bg-blue-50/50 text-slate-900 shadow-2xs'
+                            ? 'border-blue-400 bg-blue-50/70 text-slate-900 shadow-2xs font-semibold ring-1 ring-blue-300'
                             : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300'
                         }`}
                       >
@@ -1023,8 +991,11 @@ export const CampaignManagement: React.FC = () => {
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => {}} // Handled by parent div onClick
-                            className="w-4 h-4 rounded border-slate-300 text-[#005baa] focus:ring-[#005baa] cursor-pointer pointer-events-none"
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleEvaluatingUnit(u.id);
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-[#005baa] focus:ring-[#005baa] cursor-pointer"
                           />
                           <div>
                             <p className="font-bold text-slate-800 leading-tight">
@@ -1173,7 +1144,10 @@ export const CampaignManagement: React.FC = () => {
                       <div className="flex items-start gap-3 flex-1">
                         {/* Checkbox áp dụng cho đợt hiện hành */}
                         <div
-                          onClick={() => handleToggleCriterionForCampaign(c.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleCriterionForCampaign(c.id);
+                          }}
                           className="pt-0.5 cursor-pointer"
                           title={
                             isCheckedForCampaign
@@ -1184,8 +1158,11 @@ export const CampaignManagement: React.FC = () => {
                           <input
                             type="checkbox"
                             checked={isCheckedForCampaign}
-                            onChange={() => {}} // Handled by container
-                            className="w-4 h-4 rounded border-slate-300 text-[#005baa] focus:ring-[#005baa] cursor-pointer pointer-events-none"
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleToggleCriterionForCampaign(c.id);
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-[#005baa] focus:ring-[#005baa] cursor-pointer"
                           />
                         </div>
 

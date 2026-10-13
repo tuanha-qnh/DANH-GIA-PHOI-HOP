@@ -129,17 +129,87 @@ export default {
           await db.prepare(sql).run();
         }
 
+        // 1. Seed Admin & initial Users
         await db.prepare(`
           INSERT OR IGNORE INTO users (id, hrm_code, full_name, unit_id, username, password_hash, role, must_change_password, can_view_reports, status, created_at)
           VALUES ('user-admin', 'HRM-0001', 'Quản trị viên Hệ thống VNPT', 'u-root', 'admin', 'Vnpt@2026', 'ADMIN', 0, 1, 'ACTIVE', datetime('now'))
         `).run();
+        await db.prepare(`
+          INSERT OR IGNORE INTO users (id, hrm_code, full_name, unit_id, username, password_hash, role, must_change_password, can_view_reports, status, created_at)
+          VALUES ('user-ttkd-1', 'HRM-0101', 'Nguyễn Văn An (TT Kinh Doanh)', 'u-ttkd', 'user_ttkd1', 'Vnpt@123', 'USER', 0, 1, 'ACTIVE', datetime('now'))
+        `).run();
 
-        return new Response(JSON.stringify({ success: true, message: 'Khởi tạo D1 Schema thành công!' }), {
+        // 2. Seed initial Units
+        const seedUnits = [
+          ['u-root', 'VNPT-TINH', 'Viễn thông Tỉnh / VNPT Địa bàn', null, 0],
+          ['u-ttkd', 'TTKD', 'Trung tâm Kinh doanh VNPT', 'u-root', 1],
+          ['u-ttcntt', 'TTCNTT', 'Trung tâm Công nghệ Thông tin', 'u-root', 1],
+          ['u-ttdhtt', 'TTDHTT', 'Trung tâm Điều hành Thông tin', 'u-root', 1],
+          ['u-pkt-tc', 'PKTTC', 'Phòng Kế toán - Tài chính', 'u-root', 1],
+          ['u-p-ns', 'PNS', 'Phòng Nhân sự - Tổng hợp', 'u-root', 1],
+          ['u-p-kh', 'PKH', 'Phòng Kế hoạch - Đầu tư', 'u-root', 1],
+        ];
+        for (const [uid, ucode, uname, uparent, ulevel] of seedUnits) {
+          await db.prepare("INSERT OR IGNORE INTO units (id, code, name, parent_id, level, status, created_at) VALUES (?, ?, ?, ?, ?, 'ACTIVE', datetime('now'))")
+            .bind(uid, ucode, uname, uparent, ulevel).run();
+        }
+
+        // 3. Seed initial Criteria (Thang điểm 1-10)
+        const seedCriteria = [
+          ['tc-1', 'TC01', 'Tốc độ phản hồi và thời gian xử lý yêu cầu phối hợp', 'Đánh giá tính kịp thời, đúng hạn khi tiếp nhận và giải quyết văn bản, phiếu yêu cầu phối hợp giữa các đơn vị.', 1.0, 1, 10, 1],
+          ['tc-2', 'TC02', 'Chất lượng tài liệu, hồ sơ và dữ liệu bàn giao kỹ thuật / nghiệp vụ', 'Đánh giá tính chính xác, đầy đủ, chuẩn hóa của biên bản bàn giao, tài liệu kỹ thuật, số liệu báo cáo.', 1.0, 1, 10, 2],
+          ['tc-3', 'TC03', 'Tinh thần hợp tác, trách nhiệm và thái độ phối hợp giải quyết vướng mắc', 'Sự thiện chí, chủ động lắng nghe, không đùn đẩy trách nhiệm khi phát sinh sự cố liên đơn vị.', 1.0, 1, 10, 3],
+          ['tc-4', 'TC04', 'Tính chủ động đề xuất giải pháp tháo gỡ khó khăn chung', 'Đưa ra các sáng kiến, giải pháp linh hoạt nhằm tối ưu hóa tiến độ công việc chung.', 1.0, 1, 10, 4],
+          ['tc-5', 'TC05', 'Tuân thủ quy trình nghiệp vụ và cam kết SLA nội bộ', 'Thực hiện đúng quy chuẩn mạng lưới, quy trình bán hàng và quy định nội bộ VNPT.', 1.0, 1, 10, 5],
+        ];
+        for (const [cid, ccode, cname, cdesc, cweight, cmin, cmax, corder] of seedCriteria) {
+          await db.prepare("INSERT OR IGNORE INTO criteria (id, code, name, description, weight, min_score, max_score, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(cid, ccode, cname, cdesc, cweight, cmin, cmax, corder).run();
+        }
+
+        // 4. Seed initial Campaign
+        await db.prepare(`
+          INSERT OR IGNORE INTO campaigns (id, code, name, period_type, period_value, start_date, end_date, is_locked, description, created_at)
+          VALUES ('camp-q1-2026', 'DG-Q1-2026', 'Đánh giá phối hợp công tác Quý 1/2026', 'QUARTER', 'Q1-2026', '2026-01-01T00:00:00Z', '2026-03-31T23:59:59Z', 0, 'Đợt đánh giá phối hợp liên phòng ban định kỳ Quý 1/2026 toàn địa bàn VNPT.', datetime('now'))
+        `).run();
+
+        // 5. Seed initial target units & evaluating units for camp-q1-2026
+        const initialUnitIds = ['u-ttkd', 'u-ttcntt', 'u-ttdhtt', 'u-pkt-tc', 'u-p-ns', 'u-p-kh'];
+        for (const uid of initialUnitIds) {
+          await db.prepare("INSERT OR IGNORE INTO campaign_target_units (campaign_id, unit_id) VALUES ('camp-q1-2026', ?)").bind(uid).run();
+          await db.prepare("INSERT OR IGNORE INTO campaign_evaluating_units (campaign_id, unit_id) VALUES ('camp-q1-2026', ?)").bind(uid).run();
+        }
+
+        // 6. Seed initial criteria for camp-q1-2026
+        for (const [cid] of seedCriteria) {
+          await db.prepare("INSERT OR IGNORE INTO campaign_criteria (campaign_id, criterion_id) VALUES ('camp-q1-2026', ?)").bind(cid).run();
+        }
+
+        return new Response(JSON.stringify({ success: true, message: 'Khởi tạo D1 Schema & dữ liệu mẫu VNPT thành công!' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       if (pathname === '/api/sync/all' && request.method === 'GET') {
+        // Auto-seed criteria if table is empty
+        try {
+          const critCountRes = await db.prepare("SELECT count(*) as c FROM criteria").first();
+          if (!critCountRes || critCountRes.c === 0) {
+            const seedCriteria = [
+              ['tc-1', 'TC01', 'Tốc độ phản hồi và thời gian xử lý yêu cầu phối hợp', 'Đánh giá tính kịp thời, đúng hạn khi tiếp nhận và giải quyết văn bản, phiếu yêu cầu phối hợp giữa các đơn vị.', 1.0, 1, 10, 1],
+              ['tc-2', 'TC02', 'Chất lượng tài liệu, hồ sơ và dữ liệu bàn giao kỹ thuật / nghiệp vụ', 'Đánh giá tính chính xác, đầy đủ, chuẩn hóa của biên bản bàn giao, tài liệu kỹ thuật, số liệu báo cáo.', 1.0, 1, 10, 2],
+              ['tc-3', 'TC03', 'Tinh thần hợp tác, trách nhiệm và thái độ phối hợp giải quyết vướng mắc', 'Sự thiện chí, chủ động lắng nghe, không đùn đẩy trách nhiệm khi phát sinh sự cố liên đơn vị.', 1.0, 1, 10, 3],
+              ['tc-4', 'TC04', 'Tính chủ động đề xuất giải pháp tháo gỡ khó khăn chung', 'Đưa ra các sáng kiến, giải pháp linh hoạt nhằm tối ưu hóa tiến độ công việc chung.', 1.0, 1, 10, 4],
+              ['tc-5', 'TC05', 'Tuân thủ quy trình nghiệp vụ và cam kết SLA nội bộ', 'Thực hiện đúng quy chuẩn mạng lưới, quy trình bán hàng và quy định nội bộ VNPT.', 1.0, 1, 10, 5],
+            ];
+            for (const [cid, ccode, cname, cdesc, cweight, cmin, cmax, corder] of seedCriteria) {
+              await db.prepare("INSERT OR IGNORE INTO criteria (id, code, name, description, weight, min_score, max_score, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(cid, ccode, cname, cdesc, cweight, cmin, cmax, corder).run();
+              await db.prepare("INSERT OR IGNORE INTO campaign_criteria (campaign_id, criterion_id) VALUES ('camp-q1-2026', ?)").bind(cid).run();
+            }
+          }
+        } catch (e) {}
+
         const units = (await db.prepare("SELECT * FROM units ORDER BY level ASC, code ASC").all()).results || [];
         const users = (await db.prepare("SELECT id, hrm_code as hrmCode, full_name as fullName, unit_id as unitId, username, role, must_change_password as mustChangePassword, can_view_reports as canViewReports, avatar_url as avatarUrl, status, created_at as createdAt, last_login_at as lastLoginAt FROM users").all()).results || [];
         const campaigns = (await db.prepare("SELECT id, code, name, period_type as periodType, period_value as periodValue, start_date as startDate, end_date as endDate, is_locked as isLocked, description, created_at as createdAt FROM campaigns ORDER BY created_at DESC").all()).results || [];

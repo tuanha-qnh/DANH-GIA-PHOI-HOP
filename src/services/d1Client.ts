@@ -40,80 +40,116 @@ export interface FullSyncData {
 
 export const D1_CONFIG_KEY = 'vnpt_d1_worker_url';
 export const D1_TOKEN_KEY = 'vnpt_d1_api_token';
+export const D1_LOCAL_STORAGE_BACKUP = 'vnpt_d1_data_store_v2';
+
+const initialEvaluations: EvaluationRecord[] = [
+  {
+    id: 'eval-sample-1',
+    campaignId: 'camp-q1-2026',
+    evaluatorId: 'user-ttkd-1',
+    evaluatorUnitId: 'u-ttkd',
+    targetUnitId: 'u-ttcntt',
+    scores: {
+      'tc-1': { score: 9 },
+      'tc-2': { score: 8 },
+      'tc-3': { score: 9 },
+      'tc-4': { score: 8 },
+      'tc-5': { score: 9 },
+    },
+    averageScore: 8.6,
+    status: 'SUBMITTED',
+    submittedAt: '2026-03-10T14:30:00Z',
+    updatedAt: '2026-03-10T14:30:00Z',
+  },
+  {
+    id: 'eval-sample-2',
+    campaignId: 'camp-q1-2026',
+    evaluatorId: 'user-ttcntt-1',
+    evaluatorUnitId: 'u-ttcntt',
+    targetUnitId: 'u-ttkd',
+    scores: {
+      'tc-1': { score: 8 },
+      'tc-2': { score: 7 },
+      'tc-3': { score: 8 },
+      'tc-4': { score: 7 },
+      'tc-5': { score: 8 },
+    },
+    averageScore: 7.6,
+    status: 'SUBMITTED',
+    submittedAt: '2026-03-11T10:15:00Z',
+    updatedAt: '2026-03-11T10:15:00Z',
+  },
+  {
+    id: 'eval-sample-3',
+    campaignId: 'camp-q1-2026',
+    evaluatorId: 'user-ttdhtt-1',
+    evaluatorUnitId: 'u-ttdhtt',
+    targetUnitId: 'u-pkt-tc',
+    scores: {
+      'tc-1': {
+        score: 5,
+        lowScoreReason:
+          'Thời gian phê duyệt thanh toán chi phí bảo trì mạng cáp quang còn chậm, ảnh hưởng đến tiến độ của nhà thầu viễn thông.',
+      },
+      'tc-2': { score: 8 },
+      'tc-3': { score: 8 },
+      'tc-4': {
+        score: 6,
+        lowScoreReason:
+          'Cần linh hoạt hơn trong việc tạm ứng kinh phí ứng cứu thông tin khẩn cấp trong mùa mưa bão theo quy chuẩn VNPT.',
+      },
+      'tc-5': { score: 7 },
+    },
+    averageScore: 6.8,
+    status: 'SUBMITTED',
+    submittedAt: '2026-03-12T09:00:00Z',
+    updatedAt: '2026-03-12T09:00:00Z',
+  },
+];
+
+function loadStoreFromStorage(): FullSyncData {
+  try {
+    const raw = localStorage.getItem(D1_LOCAL_STORAGE_BACKUP);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          units: parsed.units?.length ? parsed.units : [...INITIAL_UNITS],
+          users: parsed.users?.length ? parsed.users : [...INITIAL_USERS],
+          campaigns: parsed.campaigns?.length ? parsed.campaigns : [...INITIAL_CAMPAIGNS],
+          criteria: parsed.criteria?.length ? parsed.criteria : [...INITIAL_CRITERIA],
+          targetUnits: parsed.targetUnits?.length ? parsed.targetUnits : [...INITIAL_TARGET_UNITS],
+          evaluatingUnits: parsed.evaluatingUnits?.length ? parsed.evaluatingUnits : [...INITIAL_EVALUATING_UNITS],
+          campaignCriteria: parsed.campaignCriteria?.length ? parsed.campaignCriteria : [...INITIAL_CAMPAIGN_CRITERIA],
+          evaluators: parsed.evaluators?.length ? parsed.evaluators : [...INITIAL_EVALUATORS],
+          evaluations: parsed.evaluations?.length ? parsed.evaluations : [...initialEvaluations],
+        };
+      }
+    }
+  } catch {}
+  return {
+    units: [...INITIAL_UNITS],
+    users: [...INITIAL_USERS],
+    campaigns: [...INITIAL_CAMPAIGNS],
+    criteria: [...INITIAL_CRITERIA],
+    targetUnits: [...INITIAL_TARGET_UNITS],
+    evaluatingUnits: [...INITIAL_EVALUATING_UNITS],
+    campaignCriteria: [...INITIAL_CAMPAIGN_CRITERIA],
+    evaluators: [...INITIAL_EVALUATORS],
+    evaluations: [...initialEvaluations],
+  };
+}
+
+function persistStoreToStorage(store: FullSyncData) {
+  try {
+    localStorage.setItem(D1_LOCAL_STORAGE_BACKUP, JSON.stringify(store));
+  } catch (e) {
+    console.warn('Could not persist to localStorage:', e);
+  }
+}
 
 // In-memory online state fallback when external Worker is not yet reached
-let inMemoryStore: FullSyncData = {
-  units: [...INITIAL_UNITS],
-  users: [...INITIAL_USERS],
-  campaigns: [...INITIAL_CAMPAIGNS],
-  criteria: [...INITIAL_CRITERIA],
-  targetUnits: [...INITIAL_TARGET_UNITS],
-  evaluatingUnits: [...INITIAL_EVALUATING_UNITS],
-  campaignCriteria: [...INITIAL_CAMPAIGN_CRITERIA],
-  evaluators: [...INITIAL_EVALUATORS],
-  evaluations: [
-    {
-      id: 'eval-sample-1',
-      campaignId: 'camp-q1-2026',
-      evaluatorId: 'user-ttkd-1',
-      evaluatorUnitId: 'u-ttkd',
-      targetUnitId: 'u-ttcntt',
-      scores: {
-        'tc-1': { score: 9 },
-        'tc-2': { score: 8 },
-        'tc-3': { score: 9 },
-        'tc-4': { score: 8 },
-        'tc-5': { score: 9 },
-      },
-      averageScore: 8.6,
-      status: 'SUBMITTED',
-      submittedAt: '2026-03-10T14:30:00Z',
-      updatedAt: '2026-03-10T14:30:00Z',
-    },
-    {
-      id: 'eval-sample-2',
-      campaignId: 'camp-q1-2026',
-      evaluatorId: 'user-ttcntt-1',
-      evaluatorUnitId: 'u-ttcntt',
-      targetUnitId: 'u-ttkd',
-      scores: {
-        'tc-1': { score: 8 },
-        'tc-2': { score: 7 },
-        'tc-3': { score: 8 },
-        'tc-4': { score: 7 },
-        'tc-5': { score: 8 },
-      },
-      averageScore: 7.6,
-      status: 'SUBMITTED',
-      submittedAt: '2026-03-11T10:15:00Z',
-      updatedAt: '2026-03-11T10:15:00Z',
-    },
-    {
-      id: 'eval-sample-3',
-      campaignId: 'camp-q1-2026',
-      evaluatorId: 'user-ttdhtt-1',
-      evaluatorUnitId: 'u-ttdhtt',
-      targetUnitId: 'u-pkt-tc',
-      scores: {
-        'tc-1': {
-          score: 5,
-          lowScoreReason: 'Thời gian phê duyệt thanh toán chi phí bảo trì mạng cáp quang còn chậm, ảnh hưởng đến tiến độ của nhà thầu viễn thông.',
-        },
-        'tc-2': { score: 8 },
-        'tc-3': { score: 8 },
-        'tc-4': {
-          score: 6,
-          lowScoreReason: 'Cần linh hoạt hơn trong việc tạm ứng kinh phí ứng cứu thông tin khẩn cấp trong mùa mưa bão theo quy chuẩn VNPT.',
-        },
-        'tc-5': { score: 7 },
-      },
-      averageScore: 6.8,
-      status: 'SUBMITTED',
-      submittedAt: '2026-03-12T09:00:00Z',
-      updatedAt: '2026-03-12T09:00:00Z',
-    },
-  ],
-};
+let inMemoryStore: FullSyncData = loadStoreFromStorage();
 
 export const d1Client = {
   getStoredWorkerUrl(): string {
@@ -350,16 +386,17 @@ export const d1Client = {
         const json = await res.json();
         if (json.success && json.data) {
           inMemoryStore = {
-            units: json.data.units || [],
-            users: json.data.users || [],
-            campaigns: json.data.campaigns || [],
-            criteria: json.data.criteria || [],
-            targetUnits: json.data.targetUnits || [],
-            evaluatingUnits: json.data.evaluatingUnits || [],
-            campaignCriteria: json.data.campaignCriteria || inMemoryStore.campaignCriteria || [],
-            evaluators: json.data.evaluators || [],
-            evaluations: json.data.evaluations || [],
+            units: json.data.units && json.data.units.length > 0 ? json.data.units : inMemoryStore.units,
+            users: json.data.users && json.data.users.length > 0 ? json.data.users : inMemoryStore.users,
+            campaigns: json.data.campaigns && json.data.campaigns.length > 0 ? json.data.campaigns : inMemoryStore.campaigns,
+            criteria: json.data.criteria && json.data.criteria.length > 0 ? json.data.criteria : inMemoryStore.criteria,
+            targetUnits: json.data.targetUnits && json.data.targetUnits.length > 0 ? json.data.targetUnits : inMemoryStore.targetUnits,
+            evaluatingUnits: json.data.evaluatingUnits && json.data.evaluatingUnits.length > 0 ? json.data.evaluatingUnits : inMemoryStore.evaluatingUnits,
+            campaignCriteria: json.data.campaignCriteria && json.data.campaignCriteria.length > 0 ? json.data.campaignCriteria : inMemoryStore.campaignCriteria,
+            evaluators: json.data.evaluators && json.data.evaluators.length > 0 ? json.data.evaluators : inMemoryStore.evaluators,
+            evaluations: json.data.evaluations && json.data.evaluations.length > 0 ? json.data.evaluations : inMemoryStore.evaluations,
           };
+          persistStoreToStorage(inMemoryStore);
           return inMemoryStore;
         }
       } catch (e: unknown) {
@@ -378,6 +415,7 @@ export const d1Client = {
       }
     }
 
+    persistStoreToStorage(inMemoryStore);
     return { ...inMemoryStore };
   },
 
@@ -388,6 +426,7 @@ export const d1Client = {
     } else {
       inMemoryStore.units.push(unit);
     }
+    persistStoreToStorage(inMemoryStore);
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
@@ -529,6 +568,7 @@ export const d1Client = {
     } else {
       inMemoryStore.campaigns.push(campaign);
     }
+    persistStoreToStorage(inMemoryStore);
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
@@ -573,6 +613,7 @@ export const d1Client = {
         ...criterionIds.map((cid) => ({ campaignId, criterionId: cid })),
       ];
     }
+    persistStoreToStorage(inMemoryStore);
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
@@ -598,7 +639,7 @@ export const d1Client = {
           }).catch(() => {});
         }
       } catch (e) {
-        console.error('Lỗi lưu cấu hình đợt đánh giá lên D1:', e);
+        console.warn('Lưu cấu hình đợt đánh giá lên D1 (đã lưu an toàn trong trình duyệt):', e);
       }
     }
     return true;
@@ -611,6 +652,7 @@ export const d1Client = {
     } else {
       inMemoryStore.criteria.push(criterion);
     }
+    persistStoreToStorage(inMemoryStore);
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
@@ -621,7 +663,7 @@ export const d1Client = {
           body: JSON.stringify(criterion),
         });
       } catch (e) {
-        console.error('Lỗi lưu tiêu chí lên D1:', e);
+        console.warn('Lưu tiêu chí lên D1 (đã lưu an toàn trong trình duyệt):', e);
       }
     }
     return true;
@@ -630,6 +672,7 @@ export const d1Client = {
   async deleteCriterion(id: string): Promise<boolean> {
     inMemoryStore.criteria = inMemoryStore.criteria.filter((c) => c.id !== id);
     inMemoryStore.campaignCriteria = inMemoryStore.campaignCriteria.filter((cc) => cc.criterionId !== id);
+    persistStoreToStorage(inMemoryStore);
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
@@ -639,7 +682,7 @@ export const d1Client = {
           headers: this.getAuthHeaders(),
         });
       } catch (e) {
-        console.error('Lỗi xóa tiêu chí trên D1:', e);
+        console.warn('Xóa tiêu chí trên D1 (đã xóa an toàn trong trình duyệt):', e);
       }
     }
     return true;
@@ -652,6 +695,7 @@ export const d1Client = {
     } else {
       inMemoryStore.evaluations.push(evaluation);
     }
+    persistStoreToStorage(inMemoryStore);
 
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {

@@ -53,6 +53,12 @@ interface AppContextType {
   saveCampaign: (campaign: Campaign) => Promise<boolean>;
   toggleCampaignLock: (campaignId: string) => Promise<boolean>;
   saveCampaignConfig: (campaignId: string, targetUnitIds: string[], evaluatingUnitIds: string[], evaluators: CampaignEvaluator[], criterionIds?: string[]) => Promise<boolean>;
+  toggleTargetUnit: (campaignId: string, unitId: string) => Promise<boolean>;
+  toggleEvaluatingUnit: (campaignId: string, unitId: string) => Promise<boolean>;
+  toggleCampaignCriterion: (campaignId: string, criterionId: string) => Promise<boolean>;
+  selectAllTargetUnits: (campaignId: string, selectAll: boolean) => Promise<boolean>;
+  selectAllEvaluatingUnits: (campaignId: string, selectAll: boolean) => Promise<boolean>;
+  selectAllCampaignCriteria: (campaignId: string, selectAll: boolean) => Promise<boolean>;
   // Criterion operations
   saveCriterion: (criterion: Criterion) => Promise<boolean>;
   deleteCriterion: (id: string) => Promise<boolean>;
@@ -344,6 +350,168 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  const toggleTargetUnit = async (campaignId: string, unitId: string): Promise<boolean> => {
+    let nextTargetIds: string[] = [];
+    setTargetUnits((prev) => {
+      const exists = prev.some((t) => t.campaignId === campaignId && t.unitId === unitId);
+      const next = exists
+        ? prev.filter((t) => !(t.campaignId === campaignId && t.unitId === unitId))
+        : [...prev, { campaignId, unitId }];
+      nextTargetIds = next.filter((t) => t.campaignId === campaignId).map((t) => t.unitId);
+      return next;
+    });
+
+    const currentEvaluatingIds = evaluatingUnits
+      .filter((e) => e.campaignId === campaignId)
+      .map((e) => e.unitId);
+    const currentEvaluatorList = evaluators.filter((ev) => ev.campaignId === campaignId);
+    const currentCritIds = campaignCriteria
+      .filter((c) => c.campaignId === campaignId)
+      .map((c) => c.criterionId);
+
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      nextTargetIds,
+      currentEvaluatingIds,
+      currentEvaluatorList,
+      currentCritIds
+    );
+    return true;
+  };
+
+  const toggleEvaluatingUnit = async (campaignId: string, unitId: string): Promise<boolean> => {
+    let nextEvaluatingIds: string[] = [];
+    setEvaluatingUnits((prev) => {
+      const exists = prev.some((e) => e.campaignId === campaignId && e.unitId === unitId);
+      const next = exists
+        ? prev.filter((e) => !(e.campaignId === campaignId && e.unitId === unitId))
+        : [...prev, { campaignId, unitId }];
+      nextEvaluatingIds = next.filter((e) => e.campaignId === campaignId).map((e) => e.unitId);
+      return next;
+    });
+
+    const currentTargetIds = targetUnits
+      .filter((t) => t.campaignId === campaignId)
+      .map((t) => t.unitId);
+    const currentEvaluatorList = evaluators.filter((ev) => ev.campaignId === campaignId);
+    const currentCritIds = campaignCriteria
+      .filter((c) => c.campaignId === campaignId)
+      .map((c) => c.criterionId);
+
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      currentTargetIds,
+      nextEvaluatingIds,
+      currentEvaluatorList,
+      currentCritIds
+    );
+    return true;
+  };
+
+  const toggleCampaignCriterion = async (campaignId: string, criterionId: string): Promise<boolean> => {
+    let nextCritIds: string[] = [];
+    setCampaignCriteria((prev) => {
+      const exists = prev.some((c) => c.campaignId === campaignId && c.criterionId === criterionId);
+      const next = exists
+        ? prev.filter((c) => !(c.campaignId === campaignId && c.criterionId === criterionId))
+        : [...prev, { campaignId, criterionId }];
+      nextCritIds = next.filter((c) => c.campaignId === campaignId).map((c) => c.criterionId);
+      return next;
+    });
+
+    const currentTargetIds = targetUnits
+      .filter((t) => t.campaignId === campaignId)
+      .map((t) => t.unitId);
+    const currentEvaluatingIds = evaluatingUnits
+      .filter((e) => e.campaignId === campaignId)
+      .map((e) => e.unitId);
+    const currentEvaluatorList = evaluators.filter((ev) => ev.campaignId === campaignId);
+
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      currentTargetIds,
+      currentEvaluatingIds,
+      currentEvaluatorList,
+      nextCritIds
+    );
+    return true;
+  };
+
+  const selectAllTargetUnits = async (campaignId: string, selectAll: boolean): Promise<boolean> => {
+    const allIds = selectAll ? units.map((u) => u.id) : [];
+    setTargetUnits((prev) => [
+      ...prev.filter((t) => t.campaignId !== campaignId),
+      ...allIds.map((uid) => ({ campaignId, unitId: uid })),
+    ]);
+
+    const currentEvaluatingIds = evaluatingUnits
+      .filter((e) => e.campaignId === campaignId)
+      .map((e) => e.unitId);
+    const currentEvaluatorList = evaluators.filter((ev) => ev.campaignId === campaignId);
+    const currentCritIds = campaignCriteria
+      .filter((c) => c.campaignId === campaignId)
+      .map((c) => c.criterionId);
+
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      allIds,
+      currentEvaluatingIds,
+      currentEvaluatorList,
+      currentCritIds
+    );
+    return true;
+  };
+
+  const selectAllEvaluatingUnits = async (campaignId: string, selectAll: boolean): Promise<boolean> => {
+    const allIds = selectAll ? units.map((u) => u.id) : [];
+    setEvaluatingUnits((prev) => [
+      ...prev.filter((e) => e.campaignId !== campaignId),
+      ...allIds.map((uid) => ({ campaignId, unitId: uid })),
+    ]);
+
+    const currentTargetIds = targetUnits
+      .filter((t) => t.campaignId === campaignId)
+      .map((t) => t.unitId);
+    const currentEvaluatorList = evaluators.filter((ev) => ev.campaignId === campaignId);
+    const currentCritIds = campaignCriteria
+      .filter((c) => c.campaignId === campaignId)
+      .map((c) => c.criterionId);
+
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      currentTargetIds,
+      allIds,
+      currentEvaluatorList,
+      currentCritIds
+    );
+    return true;
+  };
+
+  const selectAllCampaignCriteria = async (campaignId: string, selectAll: boolean): Promise<boolean> => {
+    const allIds = selectAll ? criteria.map((c) => c.id) : [];
+    setCampaignCriteria((prev) => [
+      ...prev.filter((c) => c.campaignId !== campaignId),
+      ...allIds.map((cid) => ({ campaignId, criterionId: cid })),
+    ]);
+
+    const currentTargetIds = targetUnits
+      .filter((t) => t.campaignId === campaignId)
+      .map((t) => t.unitId);
+    const currentEvaluatingIds = evaluatingUnits
+      .filter((e) => e.campaignId === campaignId)
+      .map((e) => e.unitId);
+    const currentEvaluatorList = evaluators.filter((ev) => ev.campaignId === campaignId);
+
+    await d1Client.saveCampaignConfig(
+      campaignId,
+      currentTargetIds,
+      currentEvaluatingIds,
+      currentEvaluatorList,
+      allIds
+    );
+    return true;
+  };
+
   const saveCriterion = async (criterion: Criterion): Promise<boolean> => {
     setCriteria((prev) => {
       const idx = prev.findIndex((c) => c.id === criterion.id);
@@ -420,6 +588,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveCampaign,
         toggleCampaignLock,
         saveCampaignConfig,
+        toggleTargetUnit,
+        toggleEvaluatingUnit,
+        toggleCampaignCriterion,
+        selectAllTargetUnits,
+        selectAllEvaluatingUnits,
+        selectAllCampaignCriteria,
         saveCriterion,
         deleteCriterion,
         saveEvaluation,

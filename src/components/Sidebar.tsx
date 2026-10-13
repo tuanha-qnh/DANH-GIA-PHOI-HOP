@@ -22,6 +22,8 @@ export type NavTab =
   | 'units'
   | 'users'
   | 'campaigns'
+  | 'campaign-units'
+  | 'campaign-criteria'
   | 'evaluate'
   | 'reports'
   | 'd1-config'
@@ -46,10 +48,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const adminNavItems: Array<{ id: NavTab; label: string; icon: React.ElementType; badge?: string }> = [
     { id: 'dashboard', label: 'Bảng Điều Khiển & Tiến Độ', icon: LayoutDashboard },
-    { id: 'campaigns', label: 'Đợt Đánh Giá & Gán Quyền', icon: CalendarCheck, badge: 'Kéo Thả' },
+    { id: 'campaigns', label: '1. Tạo Đợt Đánh Giá', icon: CalendarCheck },
+    { id: 'campaign-units', label: '2. Đơn Vị ĐG & Bị ĐG', icon: Building2 },
+    { id: 'campaign-criteria', label: '3. Bộ Câu Hỏi & Thang Điểm', icon: CheckSquare },
     { id: 'evaluate', label: 'Thực Hiện Đánh Giá', icon: CheckSquare },
     { id: 'reports', label: 'Báo Cáo Thống Kê', icon: BarChart3 },
-    { id: 'units', label: 'Khai Báo Đơn Vị', icon: Building2 },
+    { id: 'units', label: 'Khai Báo Cây Đơn Vị', icon: Building2 },
     { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users },
     { id: 'd1-config', label: 'Cấu Hình CSDL D1', icon: Database, badge: 'Online' },
     { id: 'settings', label: 'Cài Đặt Cá Nhân', icon: Settings },
