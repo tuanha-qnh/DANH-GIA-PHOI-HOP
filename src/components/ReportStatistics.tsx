@@ -688,7 +688,9 @@ export const ReportStatistics: React.FC = () => {
                 Chi Tiết Từng Chỉ Tiêu & Ý Kiến Phản Hồi ({detailedRows.length} mục)
               </h3>
               <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold">
-                Điểm &le; 6 kèm lý do bắt buộc &ge; 50 ký tự
+                {currentCampaign?.requireReason !== false
+                  ? `Điểm ≤ ${currentCampaign?.lowScoreThreshold ?? 6} kèm lý do bắt buộc ≥ ${currentCampaign?.minReasonLength ?? 50} ký tự`
+                  : 'Đợt này không bắt buộc giải trình điểm thấp'}
               </span>
             </div>
 
@@ -714,7 +716,9 @@ export const ReportStatistics: React.FC = () => {
                     </tr>
                   ) : (
                     detailedRows.map((row, idx) => {
-                      const isLow = row.score <= 6;
+                      const threshold = currentCampaign?.lowScoreThreshold ?? 6;
+                      const isRequire = currentCampaign?.requireReason !== false;
+                      const isLow = isRequire && row.score <= threshold;
                       return (
                         <tr key={`${row.evalId}-${row.criterionCode}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3 px-4 font-semibold text-slate-800">
@@ -754,7 +758,7 @@ export const ReportStatistics: React.FC = () => {
                               >
                                 {isLow && (
                                   <span className="font-bold block text-amber-800 text-[10px] uppercase mb-0.5">
-                                    [Lý do điểm thấp &le; 6]:
+                                    [Lý do điểm thấp &le; {threshold}]:
                                   </span>
                                 )}
                                 <p className="leading-relaxed">{row.reason}</p>

@@ -299,6 +299,9 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     isLocked: false,
     description: 'Đợt đánh giá định kỳ công tác phối hợp giữa Trung tâm Kinh doanh, Trung tâm CNTT, Trung tâm ĐHTT và các phòng ban chức năng.',
     createdAt: '2026-03-01T08:00:00Z',
+    lowScoreThreshold: 6,
+    minReasonLength: 50,
+    requireReason: true,
   },
   {
     id: 'camp-thang-02-2026',
@@ -311,6 +314,9 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     isLocked: true,
     description: 'Đợt đánh giá tháng 2 đã hoàn tất và khóa dữ liệu.',
     createdAt: '2026-02-01T08:00:00Z',
+    lowScoreThreshold: 6,
+    minReasonLength: 50,
+    requireReason: true,
   },
 ];
 

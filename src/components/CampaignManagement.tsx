@@ -21,6 +21,7 @@ import {
   HelpCircle,
   BarChart3,
   FileCheck2,
+  FileText,
   Layers,
   Search,
   CheckSquare,
@@ -116,6 +117,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
     endDate: '2026-06-30',
     endTime: '23:59',
     description: '',
+    lowScoreThreshold: 6,
+    minReasonLength: 50,
+    requireReason: true,
   });
 
   // Criterion Modal (Thêm / Sửa câu hỏi)
@@ -446,6 +450,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
       endDate: '2026-06-30',
       endTime: '23:59',
       description: '',
+      lowScoreThreshold: 6,
+      minReasonLength: 50,
+      requireReason: true,
     });
     setIsCreateCampModalOpen(true);
   };
@@ -484,6 +491,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
       endDate: eDate,
       endTime: eTime,
       description: camp.description || '',
+      lowScoreThreshold: camp.lowScoreThreshold !== undefined ? camp.lowScoreThreshold : 6,
+      minReasonLength: camp.minReasonLength !== undefined ? camp.minReasonLength : 50,
+      requireReason: camp.requireReason !== false,
     });
     setIsCreateCampModalOpen(true);
   };
@@ -533,6 +543,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
         startDate: startDateTime,
         endDate: endDateTime,
         description: campForm.description,
+        lowScoreThreshold: Number(campForm.lowScoreThreshold) || 6,
+        minReasonLength: Number(campForm.minReasonLength) || 50,
+        requireReason: campForm.requireReason,
       };
 
       await saveCampaign(updatedCamp);
@@ -551,6 +564,9 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
         isLocked: false,
         description: campForm.description,
         createdAt: new Date().toISOString(),
+        lowScoreThreshold: Number(campForm.lowScoreThreshold) || 6,
+        minReasonLength: Number(campForm.minReasonLength) || 50,
+        requireReason: campForm.requireReason,
       };
 
       await saveCampaign(newCamp);
@@ -892,6 +908,10 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                         <span>·</span>
                         <span className="text-slate-700 font-semibold">
                           {targetsCount} đơn vị bị ĐG · {evaluatingCount} đơn vị ĐG · {criteriaCount} câu hỏi · {evaluatorsCount} cán bộ
+                        </span>
+                        <span>·</span>
+                        <span className="text-amber-800 font-medium">
+                          Quy định ý kiến: {camp.requireReason !== false ? `Điểm ≤ ${camp.lowScoreThreshold ?? 6} (≥ ${camp.minReasonLength ?? 50} ký tự)` : 'Không bắt buộc'}
                         </span>
                       </div>
                     </div>
@@ -1878,6 +1898,91 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Quy định bắt buộc nhập ý kiến đóng góp khi chấm điểm thấp */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                    <FileText className="w-4 h-4 text-amber-700" />
+                    <span>QUY ĐỊNH BẮT BUỘC NHẬP Ý KIẾN ĐÓNG GÓP KHI CHẤM ĐIỂM THẤP</span>
+                  </div>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={campForm.requireReason}
+                      onChange={(e) =>
+                        setCampForm({ ...campForm, requireReason: e.target.checked })
+                      }
+                      className="rounded text-[#005baa] focus:ring-[#005baa] w-4 h-4"
+                    />
+                    <span>Bật quy định</span>
+                  </label>
+                </div>
+
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Thiết lập ngưỡng điểm kích hoạt bắt buộc người chấm phải nhập lý do giải trình / ý kiến đóng góp cụ thể.
+                </p>
+
+                {campForm.requireReason && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Bắt buộc nhập ý kiến từ mức điểm:
+                      </label>
+                      <select
+                        value={campForm.lowScoreThreshold}
+                        onChange={(e) =>
+                          setCampForm({
+                            ...campForm,
+                            lowScoreThreshold: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa] font-semibold text-amber-900"
+                      >
+                        <option value={1}>Từ 1 điểm trở xuống (&le; 1 điểm)</option>
+                        <option value={2}>Từ 2 điểm trở xuống (&le; 2 điểm)</option>
+                        <option value={3}>Từ 3 điểm trở xuống (&le; 3 điểm)</option>
+                        <option value={4}>Từ 4 điểm trở xuống (&le; 4 điểm)</option>
+                        <option value={5}>Từ 5 điểm trở xuống (&le; 5 điểm)</option>
+                        <option value={6}>Từ 6 điểm trở xuống (&le; 6 điểm - Mặc định VNPT)</option>
+                        <option value={7}>Từ 7 điểm trở xuống (&le; 7 điểm)</option>
+                        <option value={8}>Từ 8 điểm trở xuống (&le; 8 điểm)</option>
+                        <option value={9}>Từ 9 điểm trở xuống (&le; 9 điểm)</option>
+                        <option value={10}>Tất cả các điểm (&le; 10 điểm - Bắt buộc mọi mức điểm)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        Khi chấm &le; {campForm.lowScoreThreshold} điểm sẽ bắt buộc nhập giải trình
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Độ dài ý kiến tối thiểu (ký tự):
+                      </label>
+                      <select
+                        value={campForm.minReasonLength}
+                        onChange={(e) =>
+                          setCampForm({
+                            ...campForm,
+                            minReasonLength: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#005baa] font-semibold text-slate-800"
+                      >
+                        <option value={10}>Tối thiểu 10 ký tự</option>
+                        <option value={20}>Tối thiểu 20 ký tự (Ghi chú ngắn)</option>
+                        <option value={30}>Tối thiểu 30 ký tự</option>
+                        <option value={50}>Tối thiểu 50 ký tự (Mặc định VNPT)</option>
+                        <option value={70}>Tối thiểu 70 ký tự (Chi tiết)</option>
+                        <option value={100}>Tối thiểu 100 ký tự (Rất chi tiết)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        Yêu cầu nêu rõ sự việc tối thiểu {campForm.minReasonLength} ký tự
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

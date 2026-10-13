@@ -44,6 +44,9 @@ export interface Campaign {
   isLocked: boolean; // Admin can lock/unlock anytime
   description?: string;
   createdAt: string;
+  lowScoreThreshold?: number; // Ngưỡng điểm bắt buộc nhập ý kiến (mặc định 6)
+  minReasonLength?: number; // Số ký tự tối thiểu của ý kiến (mặc định 50)
+  requireReason?: boolean; // Bắt buộc nhập ý kiến khi điểm thấp (mặc định true)
 }
 
 export interface Criterion {

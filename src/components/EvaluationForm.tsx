@@ -159,16 +159,19 @@ export const EvaluationForm: React.FC = () => {
   // Validation
   const validateForm = (): boolean => {
     const errors: string[] = [];
+    const threshold = currentCampaign?.lowScoreThreshold ?? 6;
+    const minReasonLen = currentCampaign?.minReasonLength ?? 50;
+    const isRequireReason = currentCampaign?.requireReason !== false;
 
     activeCriteria.forEach((c) => {
       const item = currentScores[c.id];
       if (!item || !item.score) {
         errors.push(`Chưa chấm điểm cho tiêu chí "${c.code} - ${c.name}"`);
-      } else if (item.score <= 6) {
+      } else if (isRequireReason && item.score <= threshold) {
         const reasonLen = (item.lowScoreReason || '').trim().length;
-        if (reasonLen < 50) {
+        if (reasonLen < minReasonLen) {
           errors.push(
-            `Tiêu chí "${c.code}" có điểm ${item.score} (<= 6): Bắt buộc nhập lý do chấm điểm thấp tối thiểu 50 ký tự! (Hiện tại: ${reasonLen}/50)`
+            `Tiêu chí "${c.code}" có điểm ${item.score} (<= ${threshold}): Theo quy định đợt này, bắt buộc nhập ý kiến đóng góp / giải trình tối thiểu ${minReasonLen} ký tự! (Hiện tại: ${reasonLen}/${minReasonLen})`
           );
         }
       }
@@ -243,7 +246,10 @@ export const EvaluationForm: React.FC = () => {
             Đánh Giá Công Tác Phối Hợp Đơn Vị
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Chấm điểm theo thang điểm 1-10 và nhập lý do chấm điểm thấp (&ge; 50 ký tự nếu điểm &le; 6)
+            Chấm điểm theo thang điểm 1-10{' '}
+            {currentCampaign?.requireReason !== false
+              ? `(bắt buộc giải trình nếu điểm ≤ ${currentCampaign?.lowScoreThreshold ?? 6}, tối thiểu ${currentCampaign?.minReasonLength ?? 50} ký tự)`
+              : '(không bắt buộc nhập giải trình)'}
           </p>
         </div>
 
@@ -446,8 +452,11 @@ export const EvaluationForm: React.FC = () => {
               const currentScore = item.score;
               const reason = item.lowScoreReason || '';
               const reasonLength = reason.trim().length;
-              const isLowScore = currentScore <= 6;
-              const isReasonValid = !isLowScore || reasonLength >= 50;
+              const threshold = currentCampaign?.lowScoreThreshold ?? 6;
+              const minReasonLen = currentCampaign?.minReasonLength ?? 50;
+              const isRequireReason = currentCampaign?.requireReason !== false;
+              const isLowScore = isRequireReason && currentScore <= threshold;
+              const isReasonValid = !isLowScore || reasonLength >= minReasonLen;
 
               return (
                 <div
@@ -496,7 +505,7 @@ export const EvaluationForm: React.FC = () => {
                     <div className="grid grid-cols-10 gap-1 sm:gap-2">
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((scoreVal) => {
                         const isSelected = currentScore === scoreVal;
-                        const isLowVal = scoreVal <= 6;
+                        const isLowVal = isRequireReason && scoreVal <= threshold;
                         return (
                           <button
                             key={scoreVal}
@@ -520,20 +529,20 @@ export const EvaluationForm: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Compulsory Low Score Reason (<= 6 points) */}
+                  {/* Compulsory Low Score Reason */}
                   {isLowScore && (
                     <div className="mt-4 p-3.5 rounded-lg bg-amber-50/80 border border-amber-200 text-xs">
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-amber-900 flex items-center gap-1.5">
                           <AlertCircle className="w-4 h-4 text-amber-600" />
-                          <span>Lý do chấm điểm thấp (Bắt buộc tối thiểu 50 ký tự) *</span>
+                          <span>Lý do chấm điểm thấp (Bắt buộc tối thiểu {minReasonLen} ký tự khi &le; {threshold} điểm) *</span>
                         </label>
                         <span
                           className={`font-mono text-xs font-bold ${
-                            reasonLength >= 50 ? 'text-emerald-700' : 'text-amber-700'
+                            reasonLength >= minReasonLen ? 'text-emerald-700' : 'text-amber-700'
                           }`}
                         >
-                          {reasonLength} / 50 ký tự {reasonLength >= 50 ? '✓ Đạt yêu cầu' : `(Cần thêm ${50 - reasonLength} ký tự)`}
+                          {reasonLength} / {minReasonLen} ký tự {reasonLength >= minReasonLen ? '✓ Đạt yêu cầu' : `(Cần thêm ${minReasonLen - reasonLength} ký tự)`}
                         </span>
                       </div>
 
@@ -542,17 +551,17 @@ export const EvaluationForm: React.FC = () => {
                         disabled={!evalState.isOpen}
                         value={reason}
                         onChange={(e) => handleReasonChange(c.id, e.target.value)}
-                        placeholder="Nêu rõ nội dung, sự việc cụ thể và vướng mắc trong công tác phối hợp khiến đơn vị bị chấm điểm thấp (tối thiểu 50 ký tự)..."
+                        placeholder={`Nêu rõ nội dung, sự việc cụ thể và vướng mắc trong công tác phối hợp khiến đơn vị bị chấm điểm thấp (tối thiểu ${minReasonLen} ký tự)...`}
                         className={`w-full p-2.5 rounded-lg border text-xs bg-white focus:outline-none focus:ring-2 ${
-                          reasonLength >= 50
+                          reasonLength >= minReasonLen
                             ? 'border-emerald-300 focus:ring-emerald-500'
                             : 'border-amber-400 focus:ring-amber-500'
                         } disabled:bg-slate-100 disabled:cursor-not-allowed`}
                       />
 
-                      {reasonLength < 50 && (
+                      {reasonLength < minReasonLen && (
                         <p className="text-[11px] text-amber-800 mt-1">
-                          * Do chấm điểm {currentScore} (&le; 6), đồng chí vui lòng nêu cụ thể lý do từ 50 ký tự trở lên để lãnh đạo xem xét và cải tiến công tác phối hợp.
+                          * Do chấm điểm {currentScore} (&le; {threshold}), theo quy định của đợt này, đồng chí vui lòng nêu cụ thể lý do từ {minReasonLen} ký tự trở lên để lãnh đạo xem xét và cải tiến công tác phối hợp.
                         </p>
                       )}
                     </div>

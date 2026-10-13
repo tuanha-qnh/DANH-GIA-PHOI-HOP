@@ -378,7 +378,19 @@ export default {
         } catch (e) {}
         const units = (await db.prepare("SELECT * FROM units ORDER BY level ASC, code ASC").all()).results || [];
         const users = (await db.prepare("SELECT id, hrm_code as hrmCode, full_name as fullName, unit_id as unitId, username, role, must_change_password as mustChangePassword, can_view_reports as canViewReports, avatar_url as avatarUrl, status, created_at as createdAt, last_login_at as lastLoginAt FROM users").all()).results || [];
-        const campaigns = (await db.prepare("SELECT id, code, name, period_type as periodType, period_value as periodValue, start_date as startDate, end_date as endDate, is_locked as isLocked, description, created_at as createdAt FROM campaigns ORDER BY created_at DESC").all()).results || [];
+        let rawCampaigns = [];
+        try {
+          rawCampaigns = (await db.prepare("SELECT id, code, name, period_type as periodType, period_value as periodValue, start_date as startDate, end_date as endDate, is_locked as isLocked, description, created_at as createdAt, low_score_threshold as lowScoreThreshold, min_reason_length as minReasonLength, require_reason as requireReason FROM campaigns ORDER BY created_at DESC").all()).results || [];
+        } catch (e) {
+          rawCampaigns = (await db.prepare("SELECT id, code, name, period_type as periodType, period_value as periodValue, start_date as startDate, end_date as endDate, is_locked as isLocked, description, created_at as createdAt FROM campaigns ORDER BY created_at DESC").all()).results || [];
+        }
+        const campaigns = rawCampaigns.map(c => ({
+          ...c,
+          isLocked: !!c.isLocked,
+          lowScoreThreshold: c.lowScoreThreshold !== undefined && c.lowScoreThreshold !== null ? Number(c.lowScoreThreshold) : 6,
+          minReasonLength: c.minReasonLength !== undefined && c.minReasonLength !== null ? Number(c.minReasonLength) : 50,
+          requireReason: c.requireReason !== undefined && c.requireReason !== null ? !!c.requireReason : true
+        }));
         const criteria = (await db.prepare("SELECT id, code, name, description, weight, min_score as minScore, max_score as maxScore, order_index as orderIndex FROM criteria ORDER BY order_index ASC").all()).results || [];
         const targetUnits = (await db.prepare("SELECT campaign_id as campaignId, unit_id as unitId FROM campaign_target_units").all()).results || [];
         const evaluatingUnits = (await db.prepare("SELECT campaign_id as campaignId, unit_id as unitId FROM campaign_evaluating_units").all()).results || [];
@@ -535,11 +547,21 @@ export default {
       // Chiến dịch & Khóa/Mở khóa
       if (pathname === '/api/campaigns' && request.method === 'POST') {
         const c = await request.json();
+        try {
+          await db.prepare("ALTER TABLE campaigns ADD COLUMN low_score_threshold INTEGER DEFAULT 6").run();
+        } catch (e) {}
+        try {
+          await db.prepare("ALTER TABLE campaigns ADD COLUMN min_reason_length INTEGER DEFAULT 50").run();
+        } catch (e) {}
+        try {
+          await db.prepare("ALTER TABLE campaigns ADD COLUMN require_reason INTEGER DEFAULT 1").run();
+        } catch (e) {}
+
         await db.prepare(\`
-          INSERT INTO campaigns (id, code, name, period_type, period_value, start_date, end_date, is_locked, description, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name, period_type=excluded.period_type, period_value=excluded.period_value, start_date=excluded.start_date, end_date=excluded.end_date, is_locked=excluded.is_locked, description=excluded.description
-        \`).bind(c.id, c.code, c.name, c.periodType, c.periodValue, c.startDate, c.endDate, c.isLocked ? 1 : 0, c.description || '', c.createdAt || new Date().toISOString()).run();
+          INSERT INTO campaigns (id, code, name, period_type, period_value, start_date, end_date, is_locked, description, created_at, low_score_threshold, min_reason_length, require_reason)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name, period_type=excluded.period_type, period_value=excluded.period_value, start_date=excluded.start_date, end_date=excluded.end_date, is_locked=excluded.is_locked, description=excluded.description, low_score_threshold=excluded.low_score_threshold, min_reason_length=excluded.min_reason_length, require_reason=excluded.require_reason
+        \`).bind(c.id, c.code, c.name, c.periodType, c.periodValue, c.startDate, c.endDate, c.isLocked ? 1 : 0, c.description || '', c.createdAt || new Date().toISOString(), c.lowScoreThreshold ?? 6, c.minReasonLength ?? 50, c.requireReason !== false ? 1 : 0).run();
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
