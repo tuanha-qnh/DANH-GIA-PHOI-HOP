@@ -657,47 +657,6 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
               ))}
             </select>
           </div>
-
-          {/* Lock / Unlock button */}
-          {currentCampaign && (
-            <button
-              type="button"
-              onClick={async () => {
-                await toggleCampaignLock(currentCampaign.id);
-                showNotification(
-                  currentCampaign.isLocked
-                    ? `Đã mở khóa đợt "${currentCampaign.name}" cho cán bộ sửa đổi!`
-                    : `Đã khóa đợt "${currentCampaign.name}". Cán bộ không thể sửa đổi!`
-                );
-              }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors shadow-xs ${
-                currentCampaign.isLocked
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              }`}
-            >
-              {currentCampaign.isLocked ? (
-                <>
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>Mở Khóa</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Khóa Đợt</span>
-                </>
-              )}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsCreateCampModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo Đợt Mới (Bước 1)</span>
-          </button>
         </div>
       </div>
 
@@ -1753,7 +1712,10 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
               </h3>
               <button
                 type="button"
-                onClick={() => setIsCreateCampModalOpen(false)}
+                onClick={() => {
+                  setIsCreateCampModalOpen(false);
+                  setEditingCampaign(null);
+                }}
                 className="text-white/80 hover:text-white text-sm"
               >
                 ✕
@@ -2003,7 +1965,10 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsCreateCampModalOpen(false)}
+                  onClick={() => {
+                    setIsCreateCampModalOpen(false);
+                    setEditingCampaign(null);
+                  }}
                   className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 font-semibold"
                 >
                   Hủy Bỏ

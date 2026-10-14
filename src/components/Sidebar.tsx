@@ -61,13 +61,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const reportViewerNavItems: Array<{ id: NavTab; label: string; icon: React.ElementType; badge?: string }> = [
+    { id: 'dashboard', label: 'Bảng Điều Khiển & Tiến Độ', icon: LayoutDashboard },
     { id: 'reports', label: 'Báo Cáo Thống Kê', icon: BarChart3 },
     { id: 'settings', label: 'Cài Đặt Cá Nhân', icon: Settings },
   ];
 
   const userNavItems: Array<{ id: NavTab; label: string; icon: React.ElementType; badge?: string }> = [
     { id: 'evaluate', label: 'Đánh Giá Công Tác Phối Hợp', icon: CheckSquare },
-    ...(canViewReports ? [{ id: 'reports' as NavTab, label: 'Báo Cáo Thống Kê', icon: BarChart3 }] : []),
+    ...(canViewReports
+      ? [
+          { id: 'dashboard' as NavTab, label: 'Bảng Điều Khiển & Tiến Độ', icon: LayoutDashboard },
+          { id: 'reports' as NavTab, label: 'Báo Cáo Thống Kê', icon: BarChart3 },
+        ]
+      : []),
     { id: 'settings', label: 'Cài Đặt Cá Nhân', icon: Settings },
   ];
 

@@ -23,16 +23,16 @@ const MainLayout: React.FC = () => {
   const isAdmin = currentUser?.role === 'ADMIN';
   const isReportViewer = currentUser?.role === 'REPORT_VIEWER';
 
-  // Default starting tab: Dashboard for admin, Reports for report viewer, Evaluate for regular user
+  // Default starting tab: Dashboard for admin & report viewer, Evaluate for regular user
   const [currentTab, setCurrentTab] = useState<NavTab>(
-    isAdmin ? 'dashboard' : isReportViewer ? 'reports' : 'evaluate'
+    isAdmin || isReportViewer ? 'dashboard' : 'evaluate'
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Auto redirect REPORT_VIEWER if on unauthorized tab
+  // Auto redirect REPORT_VIEWER if on unauthorized tab (allow dashboard, reports, settings)
   React.useEffect(() => {
-    if (isReportViewer && currentTab !== 'reports' && currentTab !== 'settings') {
-      setCurrentTab('reports');
+    if (isReportViewer && currentTab !== 'dashboard' && currentTab !== 'reports' && currentTab !== 'settings') {
+      setCurrentTab('dashboard');
     }
   }, [isReportViewer, currentTab]);
 
@@ -68,7 +68,7 @@ const MainLayout: React.FC = () => {
 
         {/* Workspace Body */}
         <main className="flex-1 lg:pl-64 p-4 sm:p-6 lg:p-8 max-w-full overflow-x-hidden min-h-[calc(100vh-4rem)]">
-          {currentTab === 'dashboard' && isAdmin && (
+          {currentTab === 'dashboard' && (isAdmin || isReportViewer || currentUser?.canViewReports) && (
             <DashboardOverview onNavigateTab={(tab) => setCurrentTab(tab)} />
           )}
 

@@ -5,6 +5,8 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { d1Client } from '../services/d1Client';
+import * as XLSX from 'xlsx';
 import {
   BarChart3,
   Building2,
@@ -18,6 +20,7 @@ import {
   FileSpreadsheet,
   Check,
   Clock,
+  RefreshCw,
 } from 'lucide-react';
 
 export const ReportStatistics: React.FC = () => {
@@ -32,6 +35,7 @@ export const ReportStatistics: React.FC = () => {
     evaluatingUnits,
     evaluators,
     deleteEvaluation,
+    refreshData,
   } = useApp();
 
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -53,6 +57,7 @@ export const ReportStatistics: React.FC = () => {
     score: number;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncingD1, setIsSyncingD1] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -243,44 +248,189 @@ export const ReportStatistics: React.FC = () => {
     }
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
-    let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
+  // Đồng bộ lên CSDL D1 và lấy toàn bộ kết quả đánh giá mới nhất về
+  const handleSyncD1 = async () => {
+    setIsSyncingD1(true);
+    try {
+      const workerUrl = d1Client.getStoredWorkerUrl();
+      // 1. Đẩy các phiếu đánh giá hiện tại lên D1 nếu có worker kết nối
+      if (workerUrl && evaluations.length > 0) {
+        for (const ev of evaluations) {
+          try {
+            await fetch(d1Client.buildUrl('/api/evaluations'), {
+              method: 'POST',
+              headers: d1Client.getAuthHeaders(),
+              body: JSON.stringify(ev),
+            });
+          } catch {
+            // bỏ qua lỗi từng phiếu để tiếp tục
+          }
+        }
+      }
 
-    if (reportType === 'summary') {
-      csvContent += 'STT,Đơn vị được đánh giá,Mã đơn vị,Số lượt đánh giá,Điểm trung bình,Điểm cao nhất,Điểm thấp nhất,Xếp loại\n';
-      summaryByTargetUnit.forEach((item, idx) => {
-        const rank = item.avgScore >= 8.5 ? 'Xuất sắc' : item.avgScore >= 7.0 ? 'Tốt' : 'Trung bình';
-        csvContent += `${idx + 1},"${item.unit.name}",${item.unit.code},${item.evalCount},${item.avgScore},${item.maxScore},${item.minScore},${rank}\n`;
-      });
-    } else if (reportType === 'evaluating_summary') {
-      csvContent += 'STT,Đơn vị thực hiện đánh giá,Mã đơn vị,Số cán bộ phân công,Số phiếu đã gửi,Số đơn vị đã đánh giá,Tổng đơn vị cần đánh giá,Tiến độ hoàn thành (%),Điểm TB đã chấm,Điểm cao nhất,Điểm thấp nhất,Trạng thái\n';
-      summaryByEvaluatingUnit.forEach((item, idx) => {
-        const status =
-          item.completionRate === 100
-            ? 'Đã hoàn thành'
-            : item.evalCount > 0
-            ? 'Đang thực hiện'
-            : 'Chưa đánh giá';
-        csvContent += `${idx + 1},"${item.unit.name}",${item.unit.code},${item.assignedCount},${item.evalCount},${item.uniqueTargets},${totalTargetsExpected},${item.completionRate}%,${item.avgGivenScore},${item.maxGivenScore},${item.minGivenScore},"${status}"\n`;
-      });
-    } else {
-      csvContent += 'STT,Đơn vị được đánh giá,Đơn vị đánh giá,Cán bộ đánh giá,Mã tiêu chí,Tiêu chí,Điểm,Ý kiến / Lý do chấm điểm thấp,Thời gian gửi\n';
-      detailedRows.forEach((row, idx) => {
-        csvContent += `${idx + 1},"${row.targetUnitName}","${row.evaluatorUnitName}","${row.evaluatorName}",${row.criterionCode},"${row.criterionName}",${row.score},"${(row.reason || '').replace(/"/g, '""')}","${row.submittedAt || ''}"\n`;
-      });
+      // 2. Kéo toàn bộ dữ liệu mới nhất từ CSDL D1 về client
+      const freshData = await refreshData();
+      const freshEvals = freshData?.evaluations || evaluations;
+      showToast(
+        `Đã đồng bộ lên CSDL D1 và tải về toàn bộ ${freshEvals.length} kết quả đánh giá mới nhất thành công!`
+      );
+    } catch (err: unknown) {
+      console.error('Lỗi khi tải dữ liệu D1:', err);
+      showToast(
+        (err as Error).message || 'Lỗi kết nối hoặc đồng bộ dữ liệu với CSDL Cloudflare D1',
+        'error'
+      );
+    } finally {
+      setIsSyncingD1(false);
     }
+  };
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `BaoCao_DanhGia_VNPT_${reportType}_${currentCampaign?.periodValue || '2026'}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Xuất file Excel (.xlsx) chuẩn
+  const handleExportExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: TH Đơn Vị Được Đánh Giá
+      const sheet1Data: Array<Array<string | number>> = [
+        ['BÁO CÁO TỔNG HỢP THEO ĐƠN VỊ ĐƯỢC ĐÁNH GIÁ'],
+        [`Đợt: ${currentCampaign?.name || ''} (${currentCampaign?.periodValue || ''})`],
+        [`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}`],
+        [],
+        ['STT', 'Đơn vị được đánh giá', 'Mã đơn vị', 'Số lượt đánh giá', 'Điểm trung bình', 'Điểm cao nhất', 'Điểm thấp nhất', 'Xếp loại'],
+        ...summaryByTargetUnit.map((item, idx) => [
+          idx + 1,
+          item.unit.name,
+          item.unit.code,
+          item.evalCount,
+          item.avgScore,
+          item.maxScore,
+          item.minScore,
+          item.avgScore >= 8.5 ? 'Xuất sắc' : item.avgScore >= 7.0 ? 'Tốt' : 'Trung bình',
+        ]),
+      ];
+      const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+      ws1['!cols'] = [
+        { wch: 6 },
+        { wch: 38 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws1, 'TH Đơn Vị Được ĐG');
+
+      // Sheet 2: TH Đơn Vị Thực Hiện Đánh Giá & Tiến Độ
+      const sheet2Data: Array<Array<string | number>> = [
+        ['BÁO CÁO TIẾN ĐỘ & TỔNG HỢP THEO ĐƠN VỊ THỰC HIỆN ĐÁNH GIÁ'],
+        [`Đợt: ${currentCampaign?.name || ''} (${currentCampaign?.periodValue || ''})`],
+        [`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}`],
+        [],
+        [
+          'STT',
+          'Đơn vị thực hiện đánh giá',
+          'Mã đơn vị',
+          'Số cán bộ phân công',
+          'Số phiếu đã gửi',
+          'Số đơn vị đã đánh giá',
+          'Tổng đơn vị cần đánh giá',
+          'Tiến độ hoàn thành (%)',
+          'Điểm TB đã chấm',
+          'Điểm cao nhất',
+          'Điểm thấp nhất',
+          'Trạng thái',
+        ],
+        ...summaryByEvaluatingUnit.map((item, idx) => {
+          const status =
+            item.completionRate === 100
+              ? 'Đã hoàn thành'
+              : item.evalCount > 0
+              ? 'Đang thực hiện'
+              : 'Chưa đánh giá';
+          return [
+            idx + 1,
+            item.unit.name,
+            item.unit.code,
+            item.assignedCount,
+            item.evalCount,
+            item.uniqueTargets,
+            totalTargetsExpected,
+            `${item.completionRate}%`,
+            item.avgGivenScore,
+            item.maxGivenScore,
+            item.minGivenScore,
+            status,
+          ];
+        }),
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+      ws2['!cols'] = [
+        { wch: 6 },
+        { wch: 38 },
+        { wch: 14 },
+        { wch: 20 },
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 24 },
+        { wch: 20 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 16 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws2, 'TH Đơn Vị Đánh Giá');
+
+      // Sheet 3: Báo Cáo Chi Tiết
+      const sheet3Data: Array<Array<string | number>> = [
+        ['BÁO CÁO CHI TIẾT TỪNG PHIẾU ĐÁNH GIÁ & Ý KIẾN GÓP Ý'],
+        [`Đợt: ${currentCampaign?.name || ''} (${currentCampaign?.periodValue || ''})`],
+        [`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}`],
+        [],
+        [
+          'STT',
+          'Đơn vị được đánh giá',
+          'Đơn vị đánh giá',
+          'Cán bộ đánh giá',
+          'Mã tiêu chí',
+          'Nội dung tiêu chí',
+          'Điểm số',
+          'Ý kiến đóng góp / Lý do chấm điểm',
+          'Thời gian gửi phiếu',
+        ],
+        ...detailedRows.map((row, idx) => [
+          idx + 1,
+          row.targetUnitName,
+          row.evaluatorUnitName,
+          row.evaluatorName,
+          row.criterionCode,
+          row.criterionName,
+          row.score,
+          row.reason || '',
+          row.submittedAt ? new Date(row.submittedAt).toLocaleString('vi-VN') : '',
+        ]),
+      ];
+      const ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);
+      ws3['!cols'] = [
+        { wch: 6 },
+        { wch: 32 },
+        { wch: 32 },
+        { wch: 24 },
+        { wch: 12 },
+        { wch: 45 },
+        { wch: 10 },
+        { wch: 45 },
+        { wch: 20 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Báo Cáo Chi Tiết');
+
+      const fileName = `BaoCao_DanhGia_VNPT_${currentCampaign?.periodValue || '2026'}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      showToast(`Đã xuất thành công file Excel "${fileName}" gồm 3 sheet đầy đủ!`);
+    } catch (err: unknown) {
+      console.error('Lỗi xuất file Excel:', err);
+      showToast('Có lỗi xảy ra khi tạo file Excel', 'error');
+    }
   };
 
   const handlePrint = () => {
@@ -333,13 +483,27 @@ export const ReportStatistics: React.FC = () => {
             ))}
           </select>
 
+          {/* Nút Tải dữ liệu D1 */}
           <button
             type="button"
-            onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+            onClick={handleSyncD1}
+            disabled={isSyncingD1}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#005baa] hover:bg-[#004785] disabled:opacity-60 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+            title="Đồng bộ lên CSDL D1 và lấy toàn bộ kết quả đánh giá mới nhất"
           >
-            <Download className="w-4 h-4" />
-            <span>Xuất Excel / CSV</span>
+            <RefreshCw className={`w-4 h-4 ${isSyncingD1 ? 'animate-spin' : ''}`} />
+            <span>{isSyncingD1 ? 'Đang tải D1...' : 'Tải dữ liệu D1'}</span>
+          </button>
+
+          {/* Nút Xuất File Excel */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+            title="Xuất kết quả đánh giá sang file Excel (.xlsx) chuẩn"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Xuất File Excel</span>
           </button>
 
           <button
