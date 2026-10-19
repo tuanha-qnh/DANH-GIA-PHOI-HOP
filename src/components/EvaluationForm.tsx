@@ -21,6 +21,7 @@ import {
   Sparkles,
   Database,
   ArrowRight,
+  X,
 } from 'lucide-react';
 
 export const EvaluationForm: React.FC = () => {
@@ -98,6 +99,30 @@ export const EvaluationForm: React.FC = () => {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Popup modal thông báo lưu kết quả đánh giá thành công
+  const [saveSuccessModal, setSaveSuccessModal] = useState<{
+    isOpen: boolean;
+    targetUnitName: string;
+    campaignName: string;
+    averageScore: number;
+    completedCriteriaCount: number;
+    totalCriteriaCount: number;
+    savedAt: string;
+    nextUnitId?: string;
+    nextUnitName?: string;
+  } | null>(null);
+
+  // Lắng nghe phím ESC để đóng popup
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && saveSuccessModal?.isOpen) {
+        setSaveSuccessModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [saveSuccessModal?.isOpen]);
 
   // Sync active target unit initially or when campaign changes
   useEffect(() => {
@@ -238,6 +263,41 @@ export const EvaluationForm: React.FC = () => {
 
       await saveEvaluation(record);
       const targetUnitObj = units.find((u) => u.id === activeTargetUnitId);
+
+      // Tìm đơn vị tiếp theo chưa đánh giá (nếu có) để gợi ý chuyển tiếp
+      const remainingUnits = targetUnitsToEvaluate.filter(
+        (u) =>
+          u.id !== activeTargetUnitId &&
+          !evaluations.some(
+            (e) =>
+              e.campaignId === currentCampaign.id &&
+              e.evaluatorId === currentUser.id &&
+              e.targetUnitId === u.id &&
+              e.status === 'SUBMITTED'
+          )
+      );
+      const nextUnit = remainingUnits.length > 0 ? remainingUnits[0] : undefined;
+
+      const scoredCount = Object.keys(currentScores).filter(
+        (cid) => activeCriterionIds.includes(cid) && currentScores[cid]?.score > 0
+      ).length;
+
+      const now = new Date();
+      const savedAtStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} - ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+      // Kích hoạt popup thông báo lưu kết quả thành công
+      setSaveSuccessModal({
+        isOpen: true,
+        targetUnitName: targetUnitObj?.name || 'Đơn vị được đánh giá',
+        campaignName: currentCampaign.name,
+        averageScore,
+        completedCriteriaCount: scoredCount,
+        totalCriteriaCount: activeCriteria.length,
+        savedAt: savedAtStr,
+        nextUnitId: nextUnit?.id,
+        nextUnitName: nextUnit?.name,
+      });
+
       showNotification(
         `Đã lưu và đồng bộ đánh giá cho đơn vị "${targetUnitObj?.name}" lên CSDL D1 thành công!`
       );
@@ -442,11 +502,23 @@ export const EvaluationForm: React.FC = () => {
               </p>
             </div>
 
-            {/* Average Score Badge */}
-            <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
-              <span className="text-xs font-medium text-slate-500">Điểm Trung Bình Cộng:</span>
-              <span className="text-2xl font-black text-[#005baa]">{averageScore}</span>
-              <span className="text-xs text-slate-400">/ 10.0</span>
+            {/* Average Score Badge & Quick Save Button */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
+                <span className="text-xs font-medium text-slate-500">Điểm Trung Bình:</span>
+                <span className="text-2xl font-black text-[#005baa]">{averageScore}</span>
+                <span className="text-xs text-slate-400">/ 10.0</span>
+              </div>
+              <button
+                type="button"
+                disabled={!evalState.isOpen || isSaving}
+                onClick={handleSaveEvaluation}
+                className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                title="Lưu dữ liệu đánh giá"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSaving ? 'Đang lưu...' : 'Lưu dữ liệu'}</span>
+              </button>
             </div>
           </div>
 
@@ -616,17 +688,130 @@ export const EvaluationForm: React.FC = () => {
                 type="button"
                 disabled={!evalState.isOpen || isSaving}
                 onClick={handleSaveEvaluation}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 <span>
                   {!evalState.isOpen
                     ? `Đợt Đã Khóa (${evalState.statusLabel})`
                     : isSaving
-                    ? 'Đang lưu D1...'
-                    : 'Lưu Đánh Giá Lên CSDL D1'}
+                    ? 'Đang lưu dữ liệu...'
+                    : 'Lưu dữ liệu'}
                 </span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* POPUP MODAL: THÔNG BÁO LƯU KẾT QUẢ THÀNH CÔNG                            */}
+      {/* ========================================================================= */}
+      {saveSuccessModal && saveSuccessModal.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSaveSuccessModal(null);
+          }}
+        >
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Top decorative gradient bar */}
+            <div className="h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-[#005baa]" />
+
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setSaveSuccessModal(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Đóng popup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-6 text-center">
+              {/* Animated Success Badge Icon */}
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center ring-8 ring-emerald-50/80 shadow-inner">
+                <CheckCircle2 className="w-10 h-10 stroke-[2.2]" />
+              </div>
+
+              {/* Title & Description */}
+              <h3 className="text-xl font-bold text-slate-900 mb-1">
+                Lưu Kết Quả Thành Công!
+              </h3>
+              <p className="text-xs text-slate-500 mb-5">
+                Kết quả đánh giá đã được ghi nhận vào hệ thống và đồng bộ trực tiếp lên CSDL Cloudflare D1.
+              </p>
+
+              {/* Information Summary Card */}
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 text-left space-y-2.5 text-xs mb-6">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Đơn vị được đánh giá:</span>
+                  <span className="font-bold text-slate-900 text-right">
+                    {saveSuccessModal.targetUnitName}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Kỳ đánh giá:</span>
+                  <span className="font-semibold text-slate-700 text-right truncate max-w-[200px]" title={saveSuccessModal.campaignName}>
+                    {saveSuccessModal.campaignName}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Điểm TB cộng:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-sm text-[#005baa] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {saveSuccessModal.averageScore} / 10.0
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Tiêu chí đã chấm:</span>
+                  <span className="font-bold text-emerald-700 flex items-center gap-1">
+                    <span>{saveSuccessModal.completedCriteriaCount} / {saveSuccessModal.totalCriteriaCount} tiêu chí</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline" />
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-0.5">
+                  <span>Thời gian lưu:</span>
+                  <span className="font-mono text-slate-600">{saveSuccessModal.savedAt}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                {saveSuccessModal.nextUnitId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextId = saveSuccessModal.nextUnitId;
+                      setSaveSuccessModal(null);
+                      if (nextId) setActiveTargetUnitId(nextId);
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Tiếp tục chấm: {saveSuccessModal.nextUnitName}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setSaveSuccessModal(null)}
+                  className={`py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer ${
+                    saveSuccessModal.nextUnitId
+                      ? 'sm:w-28'
+                      : 'w-full bg-[#005baa] text-white hover:bg-[#004b8d] border-transparent shadow-sm'
+                  }`}
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>
         </div>
