@@ -19,7 +19,6 @@ import {
   Globe,
   Zap,
 } from 'lucide-react';
-import { DEFAULT_PASSWORD } from '../constants/initialData';
 import { d1Client } from '../services/d1Client';
 
 export const LoginModal: React.FC = () => {
@@ -165,7 +164,7 @@ export const LoginModal: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Tên đăng nhập / Mã HRM
+                Tên đăng nhập
               </label>
               <div className="relative">
                 <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -174,7 +173,7 @@ export const LoginModal: React.FC = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Nhập tên đăng nhập hoặc mã HRM"
+                  placeholder="Nhập tên đăng nhập"
                   className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005baa] focus:border-transparent"
                 />
               </div>
@@ -195,9 +194,6 @@ export const LoginModal: React.FC = () => {
                   className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#005baa] focus:border-transparent"
                 />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                * Mật khẩu khởi tạo mặc định: <span className="font-mono font-bold text-slate-700">{DEFAULT_PASSWORD}</span>
-              </p>
             </div>
 
             <button

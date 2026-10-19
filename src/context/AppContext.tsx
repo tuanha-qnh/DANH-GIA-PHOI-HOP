@@ -203,7 +203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Default password check: if newly created or reset, pwd is DEFAULT_PASSWORD
     const validPwd = password === DEFAULT_PASSWORD || password === (found.passwordHash || DEFAULT_PASSWORD);
     if (!validPwd) {
-      return { success: false, error: 'Mật khẩu không chính xác! (Mật khẩu mặc định: ' + DEFAULT_PASSWORD + ')' };
+      return { success: false, error: 'Mật khẩu không chính xác! Vui lòng kiểm tra lại.' };
     }
 
     setCurrentUser(found);
