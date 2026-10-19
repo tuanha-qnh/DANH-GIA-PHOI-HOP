@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { EvaluationRecord, CriterionScore } from '../types';
-import { getCampaignEvaluationState } from '../utils/campaignSchedule';
+import { getCampaignEvaluationState, getDefaultEvaluationCampaign } from '../utils/campaignSchedule';
 import {
   CheckSquare,
   Lock,
@@ -37,11 +37,27 @@ export const EvaluationForm: React.FC = () => {
     saveEvaluation,
   } = useApp();
 
+  // Xác định kỳ đánh giá mặc định theo nghiệp vụ hiện tại (VD: tháng 10/2026 thì mặc định tháng 9/2026)
+  const defaultCampaign = useMemo(() => getDefaultEvaluationCampaign(campaigns), [campaigns]);
+
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(
-    campaigns[0]?.id || ''
+    () => getDefaultEvaluationCampaign(campaigns)?.id || campaigns[0]?.id || ''
   );
 
-  const currentCampaign = campaigns.find((c) => c.id === selectedCampaignId) || campaigns[0];
+  const userManuallyChangedRef = useRef(false);
+
+  // Tự động đồng bộ đợt đánh giá mặc định khi danh sách campaigns được tải hoặc cập nhật từ CSDL D1
+  useEffect(() => {
+    if (!userManuallyChangedRef.current && campaigns.length > 0) {
+      const best = getDefaultEvaluationCampaign(campaigns);
+      if (best && best.id !== selectedCampaignId) {
+        setSelectedCampaignId(best.id);
+      }
+    }
+  }, [campaigns, selectedCampaignId]);
+
+  const currentCampaign =
+    campaigns.find((c) => c.id === selectedCampaignId) || defaultCampaign || campaigns[0];
   const evalState = useMemo(
     () => getCampaignEvaluationState(currentCampaign),
     [currentCampaign]
@@ -258,14 +274,18 @@ export const EvaluationForm: React.FC = () => {
           <span className="text-xs font-semibold text-slate-700">Chu kỳ đánh giá:</span>
           <select
             value={selectedCampaignId}
-            onChange={(e) => setSelectedCampaignId(e.target.value)}
+            onChange={(e) => {
+              userManuallyChangedRef.current = true;
+              setSelectedCampaignId(e.target.value);
+            }}
             className="text-xs font-semibold border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#005baa]"
           >
             {campaigns.map((c) => {
               const cState = getCampaignEvaluationState(c);
+              const isDefault = c.id === defaultCampaign?.id;
               return (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({cState.statusLabel})
+                  {isDefault ? '★ [Kỳ hiện tại] ' : ''}{c.name} ({cState.statusLabel})
                 </option>
               );
             })}

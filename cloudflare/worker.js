@@ -167,21 +167,28 @@ export default {
             .bind(cid, ccode, cname, cdesc, cweight, cmin, cmax, corder).run();
         }
 
-        // 4. Seed initial Campaign
+        // 4. Seed initial Campaigns
+        await db.prepare(`
+          INSERT OR IGNORE INTO campaigns (id, code, name, period_type, period_value, start_date, end_date, is_locked, description, created_at)
+          VALUES ('camp-thang-09-2026', 'DG-T09-2026', 'Đánh giá công tác phối hợp Tháng 09/2026', 'MONTH', '2026-09', '2026-10-01T00:00:00Z', '2026-10-31T23:59:59Z', 0, 'Đợt đánh giá định kỳ công tác phối hợp Tháng 09/2026 giữa các đơn vị thuộc VNPT.', datetime('now'))
+        `).run();
         await db.prepare(`
           INSERT OR IGNORE INTO campaigns (id, code, name, period_type, period_value, start_date, end_date, is_locked, description, created_at)
           VALUES ('camp-q1-2026', 'DG-Q1-2026', 'Đánh giá phối hợp công tác Quý 1/2026', 'QUARTER', 'Q1-2026', '2026-01-01T00:00:00Z', '2026-03-31T23:59:59Z', 0, 'Đợt đánh giá phối hợp liên phòng ban định kỳ Quý 1/2026 toàn địa bàn VNPT.', datetime('now'))
         `).run();
 
-        // 5. Seed initial target units & evaluating units for camp-q1-2026
+        // 5. Seed initial target units & evaluating units
         const initialUnitIds = ['u-ttkd', 'u-ttcntt', 'u-ttdhtt', 'u-pkt-tc', 'u-p-ns', 'u-p-kh'];
         for (const uid of initialUnitIds) {
+          await db.prepare("INSERT OR IGNORE INTO campaign_target_units (campaign_id, unit_id) VALUES ('camp-thang-09-2026', ?)").bind(uid).run();
+          await db.prepare("INSERT OR IGNORE INTO campaign_evaluating_units (campaign_id, unit_id) VALUES ('camp-thang-09-2026', ?)").bind(uid).run();
           await db.prepare("INSERT OR IGNORE INTO campaign_target_units (campaign_id, unit_id) VALUES ('camp-q1-2026', ?)").bind(uid).run();
           await db.prepare("INSERT OR IGNORE INTO campaign_evaluating_units (campaign_id, unit_id) VALUES ('camp-q1-2026', ?)").bind(uid).run();
         }
 
-        // 6. Seed initial criteria for camp-q1-2026
+        // 6. Seed initial criteria
         for (const [cid] of seedCriteria) {
+          await db.prepare("INSERT OR IGNORE INTO campaign_criteria (campaign_id, criterion_id) VALUES ('camp-thang-09-2026', ?)").bind(cid).run();
           await db.prepare("INSERT OR IGNORE INTO campaign_criteria (campaign_id, criterion_id) VALUES ('camp-q1-2026', ?)").bind(cid).run();
         }
 

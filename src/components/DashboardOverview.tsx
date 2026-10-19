@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getCampaignEvaluationState } from '../utils/campaignSchedule';
+import { getCampaignEvaluationState, getDefaultEvaluationCampaign } from '../utils/campaignSchedule';
 import {
   Building2,
   Users,
@@ -44,9 +44,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate
   const isAdmin = currentUser?.role === 'ADMIN';
   const isReportViewer = currentUser?.role === 'REPORT_VIEWER';
 
-  // Xác định đợt đánh giá đang có hiệu lực (ưu tiên đợt đang mở, nếu không có thì đợt đầu tiên)
+  // Xác định đợt đánh giá đang có hiệu lực (ưu tiên kỳ hiện tại theo nghiệp vụ, đợt đang mở)
   const defaultActiveCamp =
-    campaigns.find((c) => getCampaignEvaluationState(c).isOpen) || campaigns[0];
+    getDefaultEvaluationCampaign(campaigns) || campaigns[0];
 
   const [focusedCampaignId, setFocusedCampaignId] = useState<string>(
     defaultActiveCamp?.id || ''

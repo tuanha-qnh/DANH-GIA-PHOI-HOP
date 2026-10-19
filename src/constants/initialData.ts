@@ -289,6 +289,21 @@ export const INITIAL_CRITERIA: Criterion[] = [
 
 export const INITIAL_CAMPAIGNS: Campaign[] = [
   {
+    id: 'camp-thang-09-2026',
+    code: 'DG-T09-2026',
+    name: 'Đánh giá công tác phối hợp Tháng 09/2026',
+    periodType: 'MONTH',
+    periodValue: '2026-09',
+    startDate: '2026-10-01T00:00:00Z',
+    endDate: '2026-10-31T23:59:59Z',
+    isLocked: false,
+    description: 'Đợt đánh giá định kỳ công tác phối hợp Tháng 09/2026 giữa các đơn vị thuộc VNPT.',
+    createdAt: '2026-10-01T08:00:00Z',
+    lowScoreThreshold: 6,
+    minReasonLength: 50,
+    requireReason: true,
+  },
+  {
     id: 'camp-q1-2026',
     code: 'DG-Q1-2026',
     name: 'Đánh giá công tác phối hợp Quý 1/2026',
@@ -320,24 +335,43 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
   },
 ];
 
-// Target units for camp-q1-2026 (Đơn vị bị đánh giá)
+// Target units for campaigns (Đơn vị bị đánh giá)
 export const INITIAL_TARGET_UNITS = [
+  // camp-thang-09-2026
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-ttkd' },
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-ttcntt' },
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-ttdhtt' },
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-pkt-tc' },
+  // camp-q1-2026
   { campaignId: 'camp-q1-2026', unitId: 'u-ttkd' },
   { campaignId: 'camp-q1-2026', unitId: 'u-ttcntt' },
   { campaignId: 'camp-q1-2026', unitId: 'u-ttdhtt' },
   { campaignId: 'camp-q1-2026', unitId: 'u-pkt-tc' },
 ];
 
-// Evaluating units for camp-q1-2026 (Đơn vị tham gia đánh giá)
+// Evaluating units for campaigns (Đơn vị tham gia đánh giá)
 export const INITIAL_EVALUATING_UNITS = [
+  // camp-thang-09-2026
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-ttkd' },
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-ttcntt' },
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-ttdhtt' },
+  { campaignId: 'camp-thang-09-2026', unitId: 'u-pns-th' },
+  // camp-q1-2026
   { campaignId: 'camp-q1-2026', unitId: 'u-ttkd' },
   { campaignId: 'camp-q1-2026', unitId: 'u-ttcntt' },
   { campaignId: 'camp-q1-2026', unitId: 'u-ttdhtt' },
   { campaignId: 'camp-q1-2026', unitId: 'u-pns-th' },
 ];
 
-// Assigned evaluators for camp-q1-2026
+// Assigned evaluators for campaigns
 export const INITIAL_EVALUATORS = [
+  // camp-thang-09-2026
+  { campaignId: 'camp-thang-09-2026', userId: 'user-ttkd-1', unitId: 'u-ttkd', assignedAt: '2026-10-01T09:00:00Z' },
+  { campaignId: 'camp-thang-09-2026', userId: 'user-ttkd-2', unitId: 'u-ttkd', assignedAt: '2026-10-01T09:00:00Z' },
+  { campaignId: 'camp-thang-09-2026', userId: 'user-ttcntt-1', unitId: 'u-ttcntt', assignedAt: '2026-10-01T09:00:00Z' },
+  { campaignId: 'camp-thang-09-2026', userId: 'user-ttdhtt-1', unitId: 'u-ttdhtt', assignedAt: '2026-10-01T09:00:00Z' },
+  { campaignId: 'camp-thang-09-2026', userId: 'user-pns-1', unitId: 'u-pns-th', assignedAt: '2026-10-01T09:00:00Z' },
+  // camp-q1-2026
   { campaignId: 'camp-q1-2026', userId: 'user-ttkd-1', unitId: 'u-ttkd', assignedAt: '2026-03-01T09:00:00Z' },
   { campaignId: 'camp-q1-2026', userId: 'user-ttkd-2', unitId: 'u-ttkd', assignedAt: '2026-03-01T09:00:00Z' },
   { campaignId: 'camp-q1-2026', userId: 'user-ttcntt-1', unitId: 'u-ttcntt', assignedAt: '2026-03-01T09:00:00Z' },
@@ -345,8 +379,15 @@ export const INITIAL_EVALUATORS = [
   { campaignId: 'camp-q1-2026', userId: 'user-pns-1', unitId: 'u-pns-th', assignedAt: '2026-03-01T09:00:00Z' },
 ];
 
-// Selected criteria for camp-q1-2026
+// Selected criteria for campaigns
 export const INITIAL_CAMPAIGN_CRITERIA = [
+  // camp-thang-09-2026
+  { campaignId: 'camp-thang-09-2026', criterionId: 'tc-1' },
+  { campaignId: 'camp-thang-09-2026', criterionId: 'tc-2' },
+  { campaignId: 'camp-thang-09-2026', criterionId: 'tc-3' },
+  { campaignId: 'camp-thang-09-2026', criterionId: 'tc-4' },
+  { campaignId: 'camp-thang-09-2026', criterionId: 'tc-5' },
+  // camp-q1-2026
   { campaignId: 'camp-q1-2026', criterionId: 'tc-1' },
   { campaignId: 'camp-q1-2026', criterionId: 'tc-2' },
   { campaignId: 'camp-q1-2026', criterionId: 'tc-3' },

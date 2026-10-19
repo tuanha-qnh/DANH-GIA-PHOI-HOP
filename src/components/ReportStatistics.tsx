@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { d1Client } from '../services/d1Client';
+import { getDefaultEvaluationCampaign } from '../utils/campaignSchedule';
 import * as XLSX from 'xlsx';
 import {
   BarChart3,
@@ -41,8 +42,18 @@ export const ReportStatistics: React.FC = () => {
   const isAdmin = currentUser?.role === 'ADMIN';
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(
-    campaigns[0]?.id || ''
+    () => getDefaultEvaluationCampaign(campaigns)?.id || campaigns[0]?.id || ''
   );
+  const userChangedCampRef = useRef(false);
+
+  useEffect(() => {
+    if (!userChangedCampRef.current && campaigns.length > 0) {
+      const best = getDefaultEvaluationCampaign(campaigns);
+      if (best && best.id !== selectedCampaignId) {
+        setSelectedCampaignId(best.id);
+      }
+    }
+  }, [campaigns, selectedCampaignId]);
   const [reportType, setReportType] = useState<'summary' | 'evaluating_summary' | 'detail'>('summary');
   const [filterTargetUnitId, setFilterTargetUnitId] = useState<string>('ALL');
   const [filterCriterionId, setFilterCriterionId] = useState<string>('ALL');
@@ -473,14 +484,20 @@ export const ReportStatistics: React.FC = () => {
           {/* Campaign Selector */}
           <select
             value={selectedCampaignId}
-            onChange={(e) => setSelectedCampaignId(e.target.value)}
+            onChange={(e) => {
+              userChangedCampRef.current = true;
+              setSelectedCampaignId(e.target.value);
+            }}
             className="text-xs font-semibold border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#005baa]"
           >
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {campaigns.map((c) => {
+              const isDefault = c.id === getDefaultEvaluationCampaign(campaigns)?.id;
+              return (
+                <option key={c.id} value={c.id}>
+                  {isDefault ? '★ [Kỳ hiện tại] ' : ''}{c.name}
+                </option>
+              );
+            })}
           </select>
 
           {/* Nút Tải dữ liệu D1 */}
