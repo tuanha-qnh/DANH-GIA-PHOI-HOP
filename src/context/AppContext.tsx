@@ -309,8 +309,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [campaign, ...prev];
     });
-    await d1Client.saveCampaign(campaign);
-    return true;
+    return await d1Client.saveCampaign(campaign);
   };
 
   const deleteCampaign = async (campaignId: string): Promise<boolean> => {
@@ -360,27 +359,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
     }
 
-    // 2. Đồng bộ ngầm lên D1 Client và Cloudflare Worker
-    await d1Client.saveCampaignConfig(
+    // 2. Đồng bộ lên D1 Client và Cloudflare Worker
+    return await d1Client.saveCampaignConfig(
       campaignId,
       targetUnitIds,
       evaluatingUnitIds,
       evaluatorsToSave,
       criterionIds
     );
-    return true;
   };
 
   const toggleTargetUnit = async (campaignId: string, unitId: string): Promise<boolean> => {
-    let nextTargetIds: string[] = [];
-    setTargetUnits((prev) => {
-      const exists = prev.some((t) => t.campaignId === campaignId && t.unitId === unitId);
-      const next = exists
-        ? prev.filter((t) => !(t.campaignId === campaignId && t.unitId === unitId))
-        : [...prev, { campaignId, unitId }];
-      nextTargetIds = next.filter((t) => t.campaignId === campaignId).map((t) => t.unitId);
-      return next;
-    });
+    const exists = targetUnits.some((t) => t.campaignId === campaignId && t.unitId === unitId);
+    const next = exists
+      ? targetUnits.filter((t) => !(t.campaignId === campaignId && t.unitId === unitId))
+      : [...targetUnits, { campaignId, unitId }];
+    const nextTargetIds = next.filter((t) => t.campaignId === campaignId).map((t) => t.unitId);
+    setTargetUnits(next);
 
     const currentEvaluatingIds = evaluatingUnits
       .filter((e) => e.campaignId === campaignId)
@@ -401,15 +396,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleEvaluatingUnit = async (campaignId: string, unitId: string): Promise<boolean> => {
-    let nextEvaluatingIds: string[] = [];
-    setEvaluatingUnits((prev) => {
-      const exists = prev.some((e) => e.campaignId === campaignId && e.unitId === unitId);
-      const next = exists
-        ? prev.filter((e) => !(e.campaignId === campaignId && e.unitId === unitId))
-        : [...prev, { campaignId, unitId }];
-      nextEvaluatingIds = next.filter((e) => e.campaignId === campaignId).map((e) => e.unitId);
-      return next;
-    });
+    const exists = evaluatingUnits.some((e) => e.campaignId === campaignId && e.unitId === unitId);
+    const next = exists
+      ? evaluatingUnits.filter((e) => !(e.campaignId === campaignId && e.unitId === unitId))
+      : [...evaluatingUnits, { campaignId, unitId }];
+    const nextEvaluatingIds = next.filter((e) => e.campaignId === campaignId).map((e) => e.unitId);
+    setEvaluatingUnits(next);
 
     const currentTargetIds = targetUnits
       .filter((t) => t.campaignId === campaignId)
@@ -430,15 +422,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleCampaignCriterion = async (campaignId: string, criterionId: string): Promise<boolean> => {
-    let nextCritIds: string[] = [];
-    setCampaignCriteria((prev) => {
-      const exists = prev.some((c) => c.campaignId === campaignId && c.criterionId === criterionId);
-      const next = exists
-        ? prev.filter((c) => !(c.campaignId === campaignId && c.criterionId === criterionId))
-        : [...prev, { campaignId, criterionId }];
-      nextCritIds = next.filter((c) => c.campaignId === campaignId).map((c) => c.criterionId);
-      return next;
-    });
+    const exists = campaignCriteria.some((c) => c.campaignId === campaignId && c.criterionId === criterionId);
+    const next = exists
+      ? campaignCriteria.filter((c) => !(c.campaignId === campaignId && c.criterionId === criterionId))
+      : [...campaignCriteria, { campaignId, criterionId }];
+    const nextCritIds = next.filter((c) => c.campaignId === campaignId).map((c) => c.criterionId);
+    setCampaignCriteria(next);
 
     const currentTargetIds = targetUnits
       .filter((t) => t.campaignId === campaignId)

@@ -33,7 +33,11 @@ import {
   Info,
   ChevronRight,
   ChevronLeft,
+  Save,
+  X,
+  Database,
 } from 'lucide-react';
+import { d1Client } from '../services/d1Client';
 
 interface CampaignManagementProps {
   initialStep?: 'step1_campaigns' | 'step2_units' | 'step3_criteria' | 'step4_assignment';
@@ -62,6 +66,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
     selectAllCampaignCriteria,
     saveCriterion,
     deleteCriterion,
+    refreshData,
   } = useApp();
 
   // Workflow steps:
@@ -101,6 +106,20 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
   const [notification, setNotification] = useState<{
     message: string;
     type: 'success' | 'error';
+  } | null>(null);
+
+  // Step 4 Save & Push to D1 state
+  const [isSavingStep4, setIsSavingStep4] = useState(false);
+  const [step4SaveModal, setStep4SaveModal] = useState<{
+    isOpen: boolean;
+    campaignCode: string;
+    campaignName: string;
+    targetUnitsCount: number;
+    evaluatingUnitsCount: number;
+    criteriaCount: number;
+    evaluatorsCount: number;
+    syncedToRemoteD1: boolean;
+    savedAt: string;
   } | null>(null);
 
   // Create / Edit Campaign Modal
@@ -433,6 +452,66 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
     );
   };
 
+  const handleSaveAndCompleteCampaign = async () => {
+    if (!currentCampaign) return;
+
+    if (rightWindowUsers.length === 0) {
+      showNotification(
+        'Vui lòng gán ít nhất 1 cán bộ đánh giá sang cửa sổ bên phải trước khi Lưu!',
+        'error'
+      );
+      return;
+    }
+
+    setIsSavingStep4(true);
+    try {
+      const okCamp = await saveCampaign(currentCampaign);
+      const okConfig = await saveCampaignConfig(
+        currentCampaign.id,
+        campaignTargetUnitIds,
+        campaignEvaluatingUnitIds,
+        campaignEvaluatorList,
+        activeSelectedCriterionIds
+      );
+
+      if (!okCamp || !okConfig) {
+        showNotification(
+          'Đã lưu cấu hình trên trình duyệt nhưng đồng bộ lên Cloudflare D1 chưa thành công. Vui lòng kiểm tra kết nối Worker D1!',
+          'error'
+        );
+        return;
+      }
+
+      const hasRemoteWorker = Boolean(d1Client.getStoredWorkerUrl());
+      if (hasRemoteWorker) {
+        await refreshData();
+      }
+
+      const now = new Date();
+      const savedAtStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} - ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+      setStep4SaveModal({
+        isOpen: true,
+        campaignCode: currentCampaign.code,
+        campaignName: currentCampaign.name,
+        targetUnitsCount: campaignTargetUnitIds.length,
+        evaluatingUnitsCount: campaignEvaluatingUnitIds.length,
+        criteriaCount: activeSelectedCriterionIds.length,
+        evaluatorsCount: rightWindowUsers.length,
+        syncedToRemoteD1: hasRemoteWorker,
+        savedAt: savedAtStr,
+      });
+
+      showNotification(
+        `Đã lưu và đẩy toàn bộ cấu hình đợt "${currentCampaign.name}" lên CSDL D1 thành công!`
+      );
+    } catch {
+      showNotification('Có lỗi xảy ra khi lưu đợt đánh giá lên CSDL D1!', 'error');
+    } finally {
+      setIsSavingStep4(false);
+    }
+  };
+
   // =========================================================================
   // =========================================================================
   // THÊM / SỬA / XÓA ĐỢT ĐÁNH GIÁ (BƯỚC 1)
@@ -637,7 +716,7 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Quy trình chuẩn 3 bước: 1. Tạo đợt &rarr; 2. Chọn đơn vị bị đánh giá & tham gia &rarr; 3. Chọn bộ câu hỏi đánh giá
+            Quy trình chuẩn 4 bước: 1. Tạo đợt &rarr; 2. Chọn đơn vị &rarr; 3. Chọn câu hỏi &rarr; 4. Gán cán bộ &amp; Lưu lên CSDL
           </p>
         </div>
 
@@ -803,12 +882,17 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                 const evaluatingCount = evaluatingUnits.filter((e) => e.campaignId === camp.id).length;
                 const evaluatorsCount = evaluators.filter((ev) => ev.campaignId === camp.id).length;
                 const criteriaCount = campaignCriteria.filter((cc) => cc.campaignId === camp.id).length || criteria.length;
+                const isFullyConfigured =
+                  targetsCount > 0 && evaluatingCount > 0 && criteriaCount > 0 && evaluatorsCount > 0;
 
                 return (
                   <div
                     key={camp.id}
-                    className={`p-4 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                      isSelected ? 'bg-blue-50/50' : 'hover:bg-slate-50'
+                    onClick={() => setSelectedCampaignId(camp.id)}
+                    className={`p-4 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50/50 border-l-4 border-l-[#005baa]'
+                        : 'hover:bg-slate-50 border-l-4 border-l-transparent'
                     }`}
                   >
                     <div className="space-y-1.5 flex-1">
@@ -817,9 +901,21 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                           {camp.code}
                         </span>
                         <h4 className="font-bold text-sm text-slate-900">{camp.name}</h4>
+                        {isFullyConfigured ? (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đã Lưu Cấu Hình
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            Chưa Đủ Cấu Hình
+                          </span>
+                        )}
                         {isSelected && (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#005baa] text-white">
-                            Đang Chọn
+                          <span
+                            className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#005baa]/10 text-[#005baa] border border-[#005baa]/30"
+                            title="Đợt đang được chọn để thao tác cấu hình ở Bước 2, 3, 4"
+                          >
+                            Đợt Hiện Hành
                           </span>
                         )}
                         {(() => {
@@ -875,7 +971,10 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                    <div
+                      className="flex items-center gap-1.5 shrink-0 flex-wrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         type="button"
                         onClick={() => toggleCampaignLock(camp.id)}
@@ -1379,6 +1478,38 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
       {/* ========================================================================= */}
       {activeTab === 'step4_assignment' && (
         <div className="space-y-6">
+          {/* Header step 4 */}
+          <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl text-xs text-emerald-950 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <p className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-emerald-700" />
+                Bước 4: Gán Cán Bộ Đánh Giá &amp; Lưu Hoàn Tất Đợt Đánh Giá
+              </p>
+              <p className="text-emerald-800 mt-1">
+                Đang gán cán bộ cho đợt: <strong className="text-emerald-950">{currentCampaign?.name} ({currentCampaign?.code})</strong>. Sau khi chọn xong nhân sự, hãy bấm nút <strong>"Lưu &amp; Đẩy Lên CSDL"</strong> để hoàn tất và đồng bộ đợt đánh giá lên hệ thống.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab('step3_criteria')}
+                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold rounded-lg flex items-center gap-1 text-xs cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Quay Lại Bước 3</span>
+              </button>
+              <button
+                type="button"
+                disabled={isSavingStep4 || !currentCampaign}
+                onClick={handleSaveAndCompleteCampaign}
+                className="px-4 py-2 bg-[#005baa] hover:bg-[#004b8d] text-white font-bold rounded-lg flex items-center gap-1.5 text-xs shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSavingStep4 ? 'Đang lưu D1...' : 'Lưu & Đẩy Lên CSDL'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Top 3 KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
@@ -1692,6 +1823,42 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
                     : 'Chọn tất cả'}
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Step 4 Footer Save Action Bar */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="text-xs text-slate-600 space-y-1">
+              <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Database className="w-4 h-4 text-[#005baa]" />
+                Xác nhận hoàn tất cấu hình đợt: {currentCampaign?.name}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Tóm tắt: <strong>{campaignTargetUnitIds.length}</strong> đơn vị bị ĐG ·{' '}
+                <strong>{campaignEvaluatingUnitIds.length}</strong> đơn vị tham gia ĐG ·{' '}
+                <strong>{activeSelectedCriterionIds.length}</strong> câu hỏi ·{' '}
+                <strong className="text-emerald-700">{rightWindowUsers.length} cán bộ</strong> được gán quyền chấm điểm
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab('step3_criteria')}
+                className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold rounded-lg flex items-center gap-1.5 text-xs cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Quay Lại Bước 3</span>
+              </button>
+              <button
+                type="button"
+                disabled={isSavingStep4 || !currentCampaign}
+                onClick={handleSaveAndCompleteCampaign}
+                className="px-6 py-2.5 bg-[#005baa] hover:bg-[#004b8d] text-white font-bold rounded-lg flex items-center gap-2 text-xs shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingStep4 ? 'Đang lưu & đẩy lên CSDL...' : 'Lưu Đợt Đánh Giá Lên CSDL'}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2227,6 +2394,104 @@ export const CampaignManagement: React.FC<CampaignManagementProps> = ({ initialS
               >
                 Xác Nhận Xóa
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: THÔNG BÁO LƯU & ĐẨY ĐỢT ĐÁNH GIÁ LÊN CSDL THÀNH CÔNG (BƯỚC 4)   */}
+      {/* ========================================================================= */}
+      {step4SaveModal && step4SaveModal.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setStep4SaveModal(null);
+          }}
+        >
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-[#005baa]" />
+
+            <button
+              type="button"
+              onClick={() => setStep4SaveModal(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Đóng popup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center ring-8 ring-emerald-50/80 shadow-inner">
+                <CheckCircle2 className="w-10 h-10 stroke-[2.2]" />
+              </div>
+
+              <h3 className="text-xl font-bold text-slate-900 mb-1">
+                Lưu Đợt Đánh Giá Thành Công!
+              </h3>
+              <p className="text-xs text-slate-500 mb-5">
+                {step4SaveModal.syncedToRemoteD1
+                  ? 'Toàn bộ thông tin và phân quyền cán bộ đã được đẩy trực tiếp lên CSDL Cloudflare D1.'
+                  : 'Toàn bộ thông tin và phân quyền cán bộ đã được lưu trữ an toàn vào hệ thống.'}
+              </p>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 text-left space-y-2.5 text-xs mb-6">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Đợt đánh giá:</span>
+                  <span className="font-bold text-slate-900 text-right">
+                    {step4SaveModal.campaignCode} - {step4SaveModal.campaignName}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Đơn vị tham gia / Bị ĐG:</span>
+                  <span className="font-semibold text-slate-700">
+                    {step4SaveModal.evaluatingUnitsCount} đơn vị ĐG · {step4SaveModal.targetUnitsCount} đơn vị bị ĐG
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Bộ câu hỏi áp dụng:</span>
+                  <span className="font-semibold text-slate-700">
+                    {step4SaveModal.criteriaCount} tiêu chí
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                  <span className="text-slate-500 shrink-0 font-medium">Cán bộ được gán quyền:</span>
+                  <span className="font-bold text-emerald-700">
+                    {step4SaveModal.evaluatorsCount} cán bộ
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-0.5">
+                  <span>Thời gian lưu:</span>
+                  <span className="font-mono text-slate-600">{step4SaveModal.savedAt}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep4SaveModal(null);
+                    setActiveTab('step1_campaigns');
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-[#005baa] hover:bg-[#004b8d] text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Về Danh Sách Đợt (Bước 1)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep4SaveModal(null)}
+                  className="sm:w-28 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>
         </div>

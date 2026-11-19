@@ -573,13 +573,18 @@ export const d1Client = {
     const workerUrl = this.getStoredWorkerUrl();
     if (workerUrl) {
       try {
-        await fetch(this.buildUrl('/api/campaigns'), {
+        const res = await fetch(this.buildUrl('/api/campaigns'), {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(campaign),
         });
+        if (!res.ok) {
+          console.error('Worker trả về lỗi khi lưu campaign:', res.status);
+          return false;
+        }
       } catch (e) {
         console.error('Lỗi lưu campaign lên D1:', e);
+        return false;
       }
     }
     return true;
@@ -655,14 +660,18 @@ export const d1Client = {
 
         // Fallback for older worker versions without /api/campaign-config
         if (!res.ok) {
-          await fetch(this.buildUrl('/api/evaluators/save-batch'), {
+          const fallbackRes = await fetch(this.buildUrl('/api/evaluators/save-batch'), {
             method: 'POST',
             headers: this.getAuthHeaders(),
             body: JSON.stringify({ campaignId, evaluators }),
-          }).catch(() => {});
+          }).catch(() => null);
+          if (!fallbackRes || !fallbackRes.ok) {
+            return false;
+          }
         }
       } catch (e) {
         console.warn('Lưu cấu hình đợt đánh giá lên D1 (đã lưu an toàn trong trình duyệt):', e);
+        return false;
       }
     }
     return true;
