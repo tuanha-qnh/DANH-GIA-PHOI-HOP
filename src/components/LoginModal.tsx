@@ -106,8 +106,12 @@ export const LoginModal: React.FC = () => {
         {/* VNPT Banner Header */}
         <div className="bg-[#005baa] px-6 py-6 text-white text-center relative overflow-hidden">
           <div className="absolute -right-10 -top-10 w-36 h-36 bg-blue-400/20 rounded-full blur-2xl" />
-          <div className="w-12 h-12 mx-auto rounded-xl bg-white/10 flex items-center justify-center border border-white/20 mb-3 shadow-inner">
-            <span className="font-black text-xl tracking-wider text-white">VNPT</span>
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-white flex items-center justify-center p-2 mb-3 shadow-md">
+            <img
+              src="/assets/aistudio/Logo-VNPT_036b1d55.png"
+              alt="VNPT Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
           <h2 className="text-lg font-bold">HỆ THỐNG ĐÁNH GIÁ PHỐI HỢP</h2>
           <p className="text-xs text-blue-100 mt-1">

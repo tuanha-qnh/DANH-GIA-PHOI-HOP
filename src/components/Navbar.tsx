@@ -54,9 +54,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* VNPT Logo & Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#005baa] flex items-center justify-center shadow-xs text-white font-black tracking-wider text-sm select-none">
-                VNPT
-              </div>
+              <img
+                src="/assets/aistudio/Logo-VNPT_036b1d55.png"
+                alt="VNPT Logo"
+                className="w-11 h-11 object-contain shrink-0 select-none"
+              />
               <div className="hidden sm:block">
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-sm sm:text-base text-[#005baa] tracking-tight">

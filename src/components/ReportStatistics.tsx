@@ -536,6 +536,11 @@ export const ReportStatistics: React.FC = () => {
 
       {/* Official VNPT Print Header (Visible in print mode) */}
       <div className="hidden print:block text-center border-b border-slate-300 pb-4 mb-6">
+        <img
+          src="/assets/aistudio/Logo-VNPT_036b1d55.png"
+          alt="VNPT Logo"
+          className="w-14 h-14 object-contain mx-auto mb-2"
+        />
         <p className="text-xs font-semibold uppercase text-slate-600">TẬP ĐOÀN BƯU CHÍNH VIỄN THÔNG VIỆT NAM</p>
         <p className="text-xs font-bold uppercase text-[#005baa]">VNPT TỈNH / THÀNH PHỐ</p>
         <h2 className="text-lg font-bold text-slate-900 mt-4">
